@@ -1,26 +1,94 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #08110f;
+  --foreground: #f4efe5;
+  --surface: #101917;
+  --surface-strong: #16221f;
+  --muted: #9ea89f;
+  --line: rgba(244, 239, 229, 0.12);
+  --line-strong: rgba(244, 239, 229, 0.24);
+  --accent: #d2a95f;
+  --accent-strong: #e3bb73;
+  --accent-deep: #8c6b2e;
+  --success: #3ecf8e;
+  --danger: #ff6b6b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Segoe UI", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(210, 169, 95, 0.18), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(28, 56, 44, 0.34), transparent 28%),
+    linear-gradient(180deg, #08110f 0%, #040706 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Segoe UI", "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.datetime-input {
+  color-scheme: dark;
+  padding-right: 3rem;
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.datetime-input:hover {
+  border-color: rgba(255, 255, 255, 0.38);
+}
+
+.datetime-input:focus {
+  border-color: rgba(227, 187, 115, 0.9);
+  box-shadow: 0 0 0 1px rgba(227, 187, 115, 0.2);
+}
+
+.datetime-input::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.15);
+  opacity: 1;
+  cursor: pointer;
+}
+
+.datetime-input::-webkit-datetime-edit,
+.datetime-input::-webkit-datetime-edit-text,
+.datetime-input::-webkit-datetime-edit-month-field,
+.datetime-input::-webkit-datetime-edit-day-field,
+.datetime-input::-webkit-datetime-edit-year-field,
+.datetime-input::-webkit-datetime-edit-hour-field,
+.datetime-input::-webkit-datetime-edit-minute-field {
+  color: #ffffff;
+}
+
+.brand-shell {
+  position: relative;
+}
+
+.brand-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(180deg, rgba(0,0,0,0.8), transparent);
+  pointer-events: none;
+}
+
+a,
+button {
+  transition: all 0.18s ease;
 }

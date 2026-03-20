@@ -1,0 +1,201 @@
+import { NextResponse } from "next/server";
+import { overlaps, parseTimeToMinutes } from "@/lib/agenda-conflicts";
+import { supabase } from "@/lib/supabase";
+import { requireAdminSession } from "@/lib/admin-auth";
+
+export async function GET(req: Request) {
+  try {
+    const session = await requireAdminSession();
+    const { searchParams } = new URL(req.url);
+    const data = searchParams.get("data");
+
+    if (!data) {
+      return NextResponse.json({ erro: "Data obrigatoria." }, { status: 400 });
+    }
+
+    const { data: bloqueios, error } = await supabase
+      .from("bloqueios_agenda")
+      .select("*")
+      .eq("barbeiro_id", session.barbeiro_id)
+      .eq("data", data)
+      .order("hora_inicio", { ascending: true });
+
+    if (error) {
+      return NextResponse.json({ erro: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ bloqueios: bloqueios || [] });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro interno ao listar bloqueios.";
+    const status = message === "Nao autorizado" ? 401 : 500;
+    return NextResponse.json({ erro: message }, { status });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const session = await requireAdminSession();
+    const body = await req.json();
+    const { data, hora_inicio, hora_fim, dia_inteiro, motivo, tipo_bloqueio } = body;
+
+    if (!data) {
+      return NextResponse.json({ erro: "A data e obrigatoria." }, { status: 400 });
+    }
+
+    if (tipo_bloqueio === "horario") {
+      if (!hora_inicio || !hora_fim) {
+        return NextResponse.json({ erro: "Hora de inicio e hora de fim sao obrigatorias." }, { status: 400 });
+      }
+
+      if (hora_inicio >= hora_fim) {
+        return NextResponse.json({ erro: "Hora de fim deve ser apos hora de inicio." }, { status: 400 });
+      }
+    }
+
+    const [{ data: agendamentos, error: agendamentosError }, { data: horariosCustomizados, error: horariosError }] =
+      await Promise.all([
+        supabase
+          .from("agendamentos")
+          .select("id, nome_cliente, celular_cliente, hora_inicio, hora_fim, status, status_agendamento")
+          .eq("barbeiro_id", session.barbeiro_id)
+          .eq("data", data),
+        supabase
+          .from("horarios_customizados")
+          .select("id, nome_cliente, celular_cliente, hora_inicio, hora_fim")
+          .eq("barbeiro_id", session.barbeiro_id)
+          .eq("data", data),
+      ]);
+
+    if (agendamentosError || horariosError) {
+      return NextResponse.json({ erro: agendamentosError?.message || horariosError?.message }, { status: 500 });
+    }
+
+    if (tipo_bloqueio === "dia_inteiro") {
+      const ocupacoesAtivas = [
+        ...((agendamentos || [])
+          .filter((agendamento) =>
+            agendamento.status_agendamento
+              ? agendamento.status_agendamento !== "cancelado"
+              : agendamento.status === "ativo"
+          )
+          .map((agendamento) => ({
+            id: agendamento.id,
+            nome_cliente: agendamento.nome_cliente,
+            celular_cliente: agendamento.celular_cliente,
+            hora_inicio: agendamento.hora_inicio,
+            hora_fim: agendamento.hora_fim,
+            origem: "agendamento",
+          }))),
+        ...((horariosCustomizados || []).map((horario) => ({
+          id: horario.id,
+          nome_cliente: horario.nome_cliente,
+          celular_cliente: horario.celular_cliente,
+          hora_inicio: horario.hora_inicio,
+          hora_fim: horario.hora_fim,
+          origem: "horario_customizado",
+        }))),
+      ];
+
+      if (ocupacoesAtivas.length > 0) {
+        return NextResponse.json(
+          {
+            erro: `Nao e possivel bloquear o dia inteiro. Existem ${ocupacoesAtivas.length} horario(s) ocupados nesta data.`,
+            agendamentos: ocupacoesAtivas,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (tipo_bloqueio === "horario") {
+      const inicio = parseTimeToMinutes(hora_inicio);
+      const fim = parseTimeToMinutes(hora_fim);
+
+      const conflitoAgendamento = (agendamentos || [])
+        .filter((agendamento) =>
+          agendamento.status_agendamento
+            ? agendamento.status_agendamento !== "cancelado"
+            : agendamento.status === "ativo"
+        )
+        .find((agendamento) =>
+          overlaps(
+            inicio,
+            fim,
+            parseTimeToMinutes(String(agendamento.hora_inicio)),
+            parseTimeToMinutes(String(agendamento.hora_fim))
+          )
+        );
+
+      if (conflitoAgendamento) {
+        return NextResponse.json({ erro: "Bloqueio conflita com um agendamento existente." }, { status: 409 });
+      }
+
+      const conflitoHorarioCustomizado = (horariosCustomizados || []).find((horario) =>
+        overlaps(
+          inicio,
+          fim,
+          parseTimeToMinutes(String(horario.hora_inicio)),
+          parseTimeToMinutes(String(horario.hora_fim))
+        )
+      );
+
+      if (conflitoHorarioCustomizado) {
+        return NextResponse.json({ erro: "Bloqueio conflita com um horario personalizado." }, { status: 409 });
+      }
+    }
+
+    const { data: bloqueio, error } = await supabase
+      .from("bloqueios_agenda")
+      .insert([
+        {
+          barbeiro_id: session.barbeiro_id,
+          data,
+          hora_inicio: dia_inteiro ? null : hora_inicio || null,
+          hora_fim: dia_inteiro ? null : hora_fim || null,
+          dia_inteiro: !!dia_inteiro,
+          motivo: motivo || null,
+          tipo_bloqueio: tipo_bloqueio || "horario",
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ erro: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(bloqueio);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro interno ao criar bloqueio.";
+    const status = message === "Nao autorizado" ? 401 : 500;
+    return NextResponse.json({ erro: message }, { status });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const session = await requireAdminSession();
+    const body = await req.json();
+    const { id } = body;
+
+    if (!id) {
+      return NextResponse.json({ erro: "ID do bloqueio obrigatorio." }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("bloqueios_agenda")
+      .delete()
+      .eq("id", id)
+      .eq("barbeiro_id", session.barbeiro_id);
+
+    if (error) {
+      return NextResponse.json({ erro: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro interno ao deletar bloqueio.";
+    const status = message === "Nao autorizado" ? 401 : 500;
+    return NextResponse.json({ erro: message }, { status });
+  }
+}

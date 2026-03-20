@@ -1,0 +1,119 @@
+import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
+import { getBusyIntervals, overlaps, parseTimeToMinutes } from "@/lib/agenda-conflicts";
+import { normalizePhone } from "@/lib/phone";
+import { requireAdminSession } from "@/lib/admin-auth";
+
+export async function GET(req: Request) {
+  try {
+    const session = await requireAdminSession();
+    const { searchParams } = new URL(req.url);
+    const data = searchParams.get("data");
+
+    if (!data) {
+      return NextResponse.json({ erro: "Data obrigatoria." }, { status: 400 });
+    }
+
+    const { data: horarios, error } = await supabase
+      .from("horarios_customizados")
+      .select("*")
+      .eq("barbeiro_id", session.barbeiro_id)
+      .eq("data", data)
+      .order("hora_inicio", { ascending: true });
+
+    if (error) {
+      return NextResponse.json({ erro: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ horarios: horarios || [] });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro interno ao listar horarios.";
+    const status = message === "Nao autorizado" ? 401 : 500;
+    return NextResponse.json({ erro: message }, { status });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const session = await requireAdminSession();
+    const body = await req.json();
+    const { data, hora_inicio, hora_fim, nome_cliente, celular_cliente } = body;
+
+    if (!data || !hora_inicio || !hora_fim) {
+      return NextResponse.json({ erro: "Data, hora de inicio e hora de fim sao obrigatorias." }, { status: 400 });
+    }
+
+    if (!nome_cliente) {
+      return NextResponse.json({ erro: "Nome do cliente e obrigatorio." }, { status: 400 });
+    }
+
+    if (hora_inicio >= hora_fim) {
+      return NextResponse.json({ erro: "Hora de fim deve ser apos hora de inicio." }, { status: 400 });
+    }
+
+    const inicio = parseTimeToMinutes(hora_inicio);
+    const fim = parseTimeToMinutes(hora_fim);
+
+    const busyState = await getBusyIntervals(data, session.barbeiro_id);
+    const hasConflict = busyState.intervalos
+      .filter((intervalo) => intervalo.tipo === "agendamento" || intervalo.tipo === "horario_customizado")
+      .some((intervalo) => overlaps(inicio, fim, intervalo.inicio, intervalo.fim));
+
+    if (hasConflict) {
+      return NextResponse.json({ erro: "Existe conflito com outro agendamento ou horario personalizado." }, { status: 409 });
+    }
+
+    const { data: horario, error } = await supabase
+      .from("horarios_customizados")
+      .insert([
+        {
+          barbeiro_id: session.barbeiro_id,
+          data,
+          hora_inicio,
+          hora_fim,
+          nome_cliente,
+          celular_cliente: normalizePhone(celular_cliente) || null,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ erro: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(horario);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro interno ao criar horario.";
+    const status = message === "Nao autorizado" ? 401 : 500;
+    return NextResponse.json({ erro: message }, { status });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const session = await requireAdminSession();
+    const body = await req.json();
+    const { id } = body;
+
+    if (!id) {
+      return NextResponse.json({ erro: "ID do horario obrigatorio." }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("horarios_customizados")
+      .delete()
+      .eq("id", id)
+      .eq("barbeiro_id", session.barbeiro_id);
+
+    if (error) {
+      return NextResponse.json({ erro: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro interno ao deletar horario.";
+    const status = message === "Nao autorizado" ? 401 : 500;
+    return NextResponse.json({ erro: message }, { status });
+  }
+}
