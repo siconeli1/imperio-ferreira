@@ -3,6 +3,7 @@ import { normalizePhone } from "@/lib/phone";
 import { canCancelAppointment } from "@/lib/agendamento-rules";
 import { supabase } from "@/lib/supabase";
 import { getAdminSession } from "@/lib/admin-auth";
+import { liquidarCreditosDoAgendamento } from "@/lib/agendamento-planos";
 
 export async function POST(req: Request) {
   try {
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
 
     const { data: agendamento, error: loadError } = await supabase
       .from("agendamentos")
-      .select("id, barbeiro_id, celular_cliente, data, hora_inicio, hora_fim, status, status_agendamento, status_atendimento, status_pagamento, origem_agendamento")
+      .select("id, barbeiro_id, celular_cliente, data, hora_inicio, hora_fim, cancelavel_ate, status, status_agendamento, status_atendimento, status_pagamento, origem_agendamento")
       .eq("id", id)
       .maybeSingle();
 
@@ -59,6 +60,8 @@ export async function POST(req: Request) {
     if (error) {
       return NextResponse.json({ erro: error.message }, { status: 500 });
     }
+
+    await liquidarCreditosDoAgendamento(id, "devolucao_credito");
 
     return NextResponse.json({ sucesso: true });
   } catch {

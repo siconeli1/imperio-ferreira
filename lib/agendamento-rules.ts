@@ -1,19 +1,20 @@
-import type { StatusAgendamento, StatusAtendimento, StatusPagamento } from "@/lib/agendamento"
+import type { StatusAgendamento, StatusAtendimento, StatusPagamento } from "@/lib/agendamento";
 
 type AgendamentoRuleCandidate = {
-  data: string
-  hora_inicio: string
-  hora_fim: string
-  status?: string | null
-  status_agendamento?: StatusAgendamento | null
-  status_atendimento?: StatusAtendimento | null
-  status_pagamento?: StatusPagamento | null
-  origem_agendamento?: string | null
-}
+  data: string;
+  hora_inicio: string;
+  hora_fim: string;
+  cancelavel_ate?: string | null;
+  status?: string | null;
+  status_agendamento?: StatusAgendamento | null;
+  status_atendimento?: StatusAtendimento | null;
+  status_pagamento?: StatusPagamento | null;
+  origem_agendamento?: string | null;
+};
 
 function timeToMinutes(hora: string) {
-  const [h, m] = String(hora).slice(0, 5).split(":").map(Number)
-  return h * 60 + m
+  const [h, m] = String(hora).slice(0, 5).split(":").map(Number);
+  return h * 60 + m;
 }
 
 function getCurrentSaoPauloParts(referenceDate = new Date()) {
@@ -25,55 +26,65 @@ function getCurrentSaoPauloParts(referenceDate = new Date()) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  })
+  });
 
-  const parts = formatter.formatToParts(referenceDate)
+  const parts = formatter.formatToParts(referenceDate);
   const values = Object.fromEntries(
     parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value])
-  ) as Record<string, string>
+  ) as Record<string, string>;
 
   return {
     date: `${values.year}-${values.month}-${values.day}`,
     minutes: Number(values.hour) * 60 + Number(values.minute),
+  };
+}
+
+function toAbsoluteCancelMinutes(agendamento: Pick<AgendamentoRuleCandidate, "data" | "hora_inicio" | "cancelavel_ate">) {
+  if (agendamento.cancelavel_ate) {
+    const date = new Date(agendamento.cancelavel_ate);
+    return date.getTime();
   }
+
+  const [year, month, day] = agendamento.data.split("-").map(Number);
+  const [hour, minute] = agendamento.hora_inicio.slice(0, 5).split(":").map(Number);
+  return new Date(year, month - 1, day, hour, minute - 20).getTime();
 }
 
 export function hasAppointmentStarted(agendamento: Pick<AgendamentoRuleCandidate, "data" | "hora_inicio">, referenceDate = new Date()) {
-  const current = getCurrentSaoPauloParts(referenceDate)
+  const current = getCurrentSaoPauloParts(referenceDate);
 
-  if (agendamento.data < current.date) return true
-  if (agendamento.data > current.date) return false
-  return timeToMinutes(agendamento.hora_inicio) <= current.minutes
+  if (agendamento.data < current.date) return true;
+  if (agendamento.data > current.date) return false;
+  return timeToMinutes(agendamento.hora_inicio) <= current.minutes;
 }
 
 export function hasAppointmentEnded(agendamento: Pick<AgendamentoRuleCandidate, "data" | "hora_fim">, referenceDate = new Date()) {
-  const current = getCurrentSaoPauloParts(referenceDate)
+  const current = getCurrentSaoPauloParts(referenceDate);
 
-  if (agendamento.data < current.date) return true
-  if (agendamento.data > current.date) return false
-  return timeToMinutes(agendamento.hora_fim) <= current.minutes
+  if (agendamento.data < current.date) return true;
+  if (agendamento.data > current.date) return false;
+  return timeToMinutes(agendamento.hora_fim) <= current.minutes;
 }
 
 export function canCancelAppointment(agendamento: AgendamentoRuleCandidate, referenceDate = new Date()) {
-  if (agendamento.status === "cancelado" || agendamento.status_agendamento === "cancelado") return false
-  if (agendamento.status_agendamento === "no_show") return false
-  if (agendamento.status_atendimento === "concluido") return false
-  if (hasAppointmentStarted(agendamento, referenceDate)) return false
-  return true
+  if (agendamento.status === "cancelado" || agendamento.status_agendamento === "cancelado") return false;
+  if (agendamento.status_agendamento === "no_show") return false;
+  if (agendamento.status_atendimento === "concluido") return false;
+  return referenceDate.getTime() <= toAbsoluteCancelMinutes(agendamento);
 }
 
 export function canMarkNoShow(agendamento: AgendamentoRuleCandidate, referenceDate = new Date()) {
-  if (agendamento.origem_agendamento === "horario_customizado") return false
-  if (agendamento.status === "cancelado" || agendamento.status_agendamento === "cancelado") return false
-  if (agendamento.status_agendamento === "no_show") return false
-  if (agendamento.status_atendimento === "concluido") return false
-  return hasAppointmentStarted(agendamento, referenceDate)
+  if (agendamento.origem_agendamento === "horario_customizado") return false;
+  if (agendamento.status === "cancelado" || agendamento.status_agendamento === "cancelado") return false;
+  if (agendamento.status_agendamento === "no_show") return false;
+  if (agendamento.status_atendimento === "concluido") return false;
+  return hasAppointmentStarted(agendamento, referenceDate);
 }
 
 export function canConcludeAppointment(agendamento: AgendamentoRuleCandidate, referenceDate = new Date()) {
-  if (agendamento.origem_agendamento === "horario_customizado") return false
-  if (agendamento.status === "cancelado" || agendamento.status_agendamento === "cancelado") return false
-  if (agendamento.status_agendamento === "no_show") return false
-  if (agendamento.status_atendimento === "concluido") return false
-  return hasAppointmentStarted(agendamento, referenceDate)
+  if (agendamento.origem_agendamento === "horario_customizado") return false;
+  if (agendamento.status === "cancelado" || agendamento.status_agendamento === "cancelado") return false;
+  if (agendamento.status_agendamento === "no_show") return false;
+  if (agendamento.status_atendimento === "concluido") return false;
+  return hasAppointmentStarted(agendamento, referenceDate);
 }

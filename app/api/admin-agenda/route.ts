@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { calcularValorFinal, syncAutoClosedAgendamentos } from "@/lib/agendamento";
 import { canCancelAppointment, canConcludeAppointment, canMarkNoShow } from "@/lib/agendamento-rules";
 import { requireAdminSession } from "@/lib/admin-auth";
+import { liquidarCreditosDoAgendamento, registrarReceitaAvulsaDoAgendamento } from "@/lib/agendamento-planos";
 
 export async function GET(req: Request) {
   try {
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
 
     let agendamentoQuery = supabase
       .from("agendamentos")
-      .select("id, data, hora_inicio, hora_fim, nome_cliente, celular_cliente, servico_nome, servico_preco, status, status_agendamento, status_atendimento, status_pagamento, valor_tabela, desconto, acrescimo, valor_final, forma_pagamento, origem_agendamento, observacoes, concluido_em, cancelado_em")
+      .select("id, data, hora_inicio, hora_fim, nome_cliente, celular_cliente, servico_nome, servico_preco, status, status_agendamento, status_atendimento, status_pagamento, valor_tabela, desconto, acrescimo, valor_final, forma_pagamento, origem_agendamento, observacoes, concluido_em, cancelado_em, tipo_cobranca")
       .eq("barbeiro_id", session.barbeiro_id)
       .order("data", { ascending: true })
       .order("hora_inicio", { ascending: true });
@@ -44,17 +45,13 @@ export async function GET(req: Request) {
     }
 
     const agendamentos = await syncAutoClosedAgendamentos(agendamentosRaw || []);
-
     const { data: horariosCustomizados, error: errorCustom } = await customQuery;
     if (errorCustom) {
       return NextResponse.json({ erro: errorCustom.message }, { status: 500 });
     }
 
     const todosAgendamentos = [
-      ...(agendamentos || []).map((agendamento) => ({
-        ...agendamento,
-        origem: "agendamento",
-      })),
+      ...(agendamentos || []).map((agendamento) => ({ ...agendamento, origem: "agendamento" })),
       ...(horariosCustomizados || []).map((hc) => ({
         id: hc.id,
         data: hc.data,
@@ -78,14 +75,14 @@ export async function GET(req: Request) {
         concluido_em: null,
         cancelado_em: null,
         origem: "horario_customizado",
+        tipo_cobranca: "avulso",
       })),
     ];
 
     return NextResponse.json(todosAgendamentos);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro interno ao carregar agenda.";
-    const status = message === "Nao autorizado" ? 401 : 500;
-    return NextResponse.json({ erro: message }, { status });
+    return NextResponse.json({ erro: message }, { status: message === "Nao autorizado" ? 401 : 500 });
   }
 }
 
@@ -93,17 +90,7 @@ export async function PATCH(req: Request) {
   try {
     const session = await requireAdminSession();
     const body = await req.json();
-    const {
-      id,
-      status_agendamento,
-      status_atendimento,
-      status_pagamento,
-      desconto,
-      acrescimo,
-      valor_final,
-      forma_pagamento,
-      observacoes,
-    } = body;
+    const { id, status_agendamento, status_atendimento, status_pagamento, desconto, acrescimo, valor_final, forma_pagamento, observacoes } = body;
 
     if (!id) {
       return NextResponse.json({ erro: "ID obrigatorio." }, { status: 400 });
@@ -111,7 +98,7 @@ export async function PATCH(req: Request) {
 
     const { data: atual, error: loadError } = await supabase
       .from("agendamentos")
-      .select("id, barbeiro_id, data, hora_inicio, hora_fim, valor_tabela, desconto, acrescimo, status, status_agendamento, status_atendimento, status_pagamento, origem_agendamento")
+      .select("id, barbeiro_id, data, hora_inicio, hora_fim, cancelavel_ate, valor_tabela, desconto, acrescimo, status, status_agendamento, status_atendimento, status_pagamento, origem_agendamento")
       .eq("id", id)
       .eq("barbeiro_id", session.barbeiro_id)
       .maybeSingle();
@@ -127,25 +114,18 @@ export async function PATCH(req: Request) {
     if (status_agendamento === "cancelado" && !canCancelAppointment(atual)) {
       return NextResponse.json({ erro: "Este agendamento nao pode mais ser cancelado." }, { status: 409 });
     }
-
     if (status_agendamento === "no_show" && !canMarkNoShow(atual)) {
       return NextResponse.json({ erro: "So e possivel marcar falta apos o horario." }, { status: 409 });
     }
-
     if (status_atendimento === "concluido" && !canConcludeAppointment(atual)) {
       return NextResponse.json({ erro: "So e possivel concluir o atendimento apos o horario marcado." }, { status: 409 });
     }
 
-    const descontoFinal = normalizeMoneyField(desconto, atual.desconto);
-    const acrescimoFinal = normalizeMoneyField(acrescimo, atual.acrescimo);
-    const valorFinalCalculado =
-      valor_final === undefined || valor_final === null || valor_final === ""
-        ? calcularValorFinal({
-            valorTabela: Number(atual.valor_tabela ?? 0),
-            desconto: descontoFinal,
-            acrescimo: acrescimoFinal,
-          })
-        : Number(valor_final);
+    const descontoFinal = desconto === undefined || desconto === null || desconto === "" ? Number(atual.desconto ?? 0) : Number(desconto);
+    const acrescimoFinal = acrescimo === undefined || acrescimo === null || acrescimo === "" ? Number(atual.acrescimo ?? 0) : Number(acrescimo);
+    const valorFinalCalculado = valor_final === undefined || valor_final === null || valor_final === ""
+      ? calcularValorFinal({ valorTabela: Number(atual.valor_tabela ?? 0), desconto: descontoFinal, acrescimo: acrescimoFinal })
+      : Number(valor_final);
 
     const patch: Record<string, string | number | null> = {
       desconto: descontoFinal,
@@ -168,17 +148,9 @@ export async function PATCH(req: Request) {
       }
     }
 
-    if (status_pagamento) {
-      patch.status_pagamento = status_pagamento;
-    }
-
-    if (forma_pagamento !== undefined) {
-      patch.forma_pagamento = forma_pagamento || null;
-    }
-
-    if (observacoes !== undefined) {
-      patch.observacoes = observacoes || null;
-    }
+    if (status_pagamento) patch.status_pagamento = status_pagamento;
+    if (forma_pagamento !== undefined) patch.forma_pagamento = forma_pagamento || null;
+    if (observacoes !== undefined) patch.observacoes = observacoes || null;
 
     const { data: atualizado, error } = await supabase
       .from("agendamentos")
@@ -192,18 +164,22 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ erro: error.message }, { status: 500 });
     }
 
+    if (status_agendamento === "cancelado") {
+      await liquidarCreditosDoAgendamento(id, "devolucao_credito");
+    }
+
+    if (status_atendimento === "concluido") {
+      await liquidarCreditosDoAgendamento(id, "consumo_credito");
+      await registrarReceitaAvulsaDoAgendamento(id);
+    }
+
+    if (status_agendamento === "no_show") {
+      await liquidarCreditosDoAgendamento(id, "consumo_credito");
+    }
+
     return NextResponse.json({ ok: true, agendamento: atualizado });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro interno ao atualizar agendamento.";
-    const status = message === "Nao autorizado" ? 401 : 500;
-    return NextResponse.json({ erro: message }, { status });
+    return NextResponse.json({ erro: message }, { status: message === "Nao autorizado" ? 401 : 500 });
   }
-}
-
-function normalizeMoneyField(nextValue: unknown, currentValue: unknown) {
-  if (nextValue === undefined || nextValue === null || nextValue === "") {
-    return Number(currentValue ?? 0);
-  }
-
-  return Number(nextValue);
 }

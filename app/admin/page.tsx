@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { getTodayInputValue } from "@/lib/format";
 
 type AgendaItem = {
@@ -256,6 +257,14 @@ export default function AdminPage() {
             <p className="text-xs uppercase tracking-[0.26em] text-[var(--accent-strong)]">Area administrativa</p>
             <h1 className="mt-3 text-3xl font-semibold">{barbeiro?.nome ?? "Carregando barbeiro..."}</h1>
             <p className="mt-2 text-[var(--muted)]">Login individual: {barbeiro?.login ?? "-"}</p>
+            <div className="mt-5 flex flex-wrap gap-3 text-sm">
+              <Link href="/admin/clientes" className="border border-white/20 px-4 py-2 font-semibold hover:bg-white/10">
+                Clientes
+              </Link>
+              <Link href="/admin/assinaturas" className="border border-white/20 px-4 py-2 font-semibold hover:bg-white/10">
+                Assinaturas
+              </Link>
+            </div>
           </div>
           <button type="button" onClick={sair} className="border border-white/20 px-5 py-3 font-semibold hover:bg-white/10">
             Sair

@@ -4,6 +4,7 @@ export interface Servico {
   id: string;
   codigo: string;
   nome: string;
+  categoria: "corte" | "barba" | "sobrancelha" | "combo" | "outro";
   duracao_minutos: number;
   preco: number;
   ordem: number;
@@ -15,6 +16,7 @@ const SERVICOS_FALLBACK: Servico[] = [
     id: "corte-classico",
     codigo: "corte-classico",
     nome: "Corte classico",
+    categoria: "corte",
     duracao_minutos: 45,
     preco: 45,
     ordem: 1,
@@ -24,26 +26,29 @@ const SERVICOS_FALLBACK: Servico[] = [
     id: "barba-modelada",
     codigo: "barba-modelada",
     nome: "Barba modelada",
+    categoria: "barba",
     duracao_minutos: 35,
     preco: 35,
     ordem: 2,
     ativo: true,
   },
   {
-    id: "corte-barba",
-    codigo: "corte-barba",
-    nome: "Corte e barba",
-    duracao_minutos: 70,
-    preco: 75,
+    id: "sobrancelha",
+    codigo: "sobrancelha",
+    nome: "Sobrancelha",
+    categoria: "sobrancelha",
+    duracao_minutos: 20,
+    preco: 20,
     ordem: 3,
     ativo: true,
   },
   {
-    id: "pigmentacao-acabamento",
-    codigo: "pigmentacao-acabamento",
-    nome: "Pigmentacao e acabamento",
-    duracao_minutos: 30,
-    preco: 30,
+    id: "corte-barba",
+    codigo: "corte-barba",
+    nome: "Corte e barba",
+    categoria: "combo",
+    duracao_minutos: 70,
+    preco: 75,
     ordem: 4,
     ativo: true,
   },
@@ -52,7 +57,7 @@ const SERVICOS_FALLBACK: Servico[] = [
 async function loadServicosFromDatabase() {
   const { data, error } = await supabase
     .from("servicos")
-    .select("id, codigo, nome, duracao_minutos, preco, ordem, ativo")
+    .select("id, codigo, nome, categoria, duracao_minutos, preco, ordem, ativo")
     .order("ordem", { ascending: true })
     .order("nome", { ascending: true });
 
@@ -81,9 +86,13 @@ export async function encontrarServicoAtivo(params: { id?: string | null; codigo
   }
 
   const servicos = await listarServicosAtivos();
-  return (
-    servicos.find((servico) => {
-      return servico.id.toLowerCase() === match || servico.codigo.toLowerCase() === match;
-    }) ?? null
-  );
+  return servicos.find((servico) => servico.id.toLowerCase() === match || servico.codigo.toLowerCase() === match) ?? null;
+}
+
+export async function encontrarServicosAtivosPorIds(serviceIds: string[]) {
+  const ids = Array.from(new Set(serviceIds.map((item) => item.trim()).filter(Boolean)));
+  if (ids.length === 0) return [];
+
+  const servicos = await listarServicosAtivos();
+  return servicos.filter((servico) => ids.includes(servico.id) || ids.includes(servico.codigo));
 }
