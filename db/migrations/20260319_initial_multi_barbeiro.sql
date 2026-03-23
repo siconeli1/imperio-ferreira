@@ -122,9 +122,10 @@ ALTER TABLE public.horarios_customizados
 
 INSERT INTO public.barbeiros (id, nome, slug, login, senha_hash, ativo, ordem, foto_url)
 VALUES
-  ('enzo-ferreira', 'Enzo Ferreira', 'enzo-ferreira', 'enzo', '9780504a6409d9e94d06f54161fba4b798fc348b2b595b1361e589aeea7f5a37', true, 1, null),
-  ('rafa-costa', 'Rafael Costa', 'rafael-costa', 'rafa', '033c5e1d53fe695ba624aca792a18ade043ed386c3d58e781ea23dd3f5c463a1', true, 2, null),
-  ('marcos-lima', 'Marcos Lima', 'marcos-lima', 'marcos', 'd9c0002e3a7df51985a36327e5ec93760cc03f782f620a5fe7f2ac550218bfa6', true, 3, null)
+  ('lucas-cantelle', 'Lucas Cantelle', 'lucas-cantelle', 'lucas', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', true, 1, null),
+  ('alexandre-albertini', 'Alexandre Albertini', 'alexandre-albertini', 'alexandre', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', true, 2, null),
+  ('ryan-ferreira', 'Ryan Ferreira', 'ryan-ferreira', 'ryan', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', true, 3, null),
+  ('peixoto', 'Peixoto', 'peixoto', 'peixoto', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', true, 4, null)
 ON CONFLICT (id) DO UPDATE SET
   nome = EXCLUDED.nome,
   slug = EXCLUDED.slug,

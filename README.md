@@ -33,9 +33,10 @@ ADMIN_SESSION_SECRET=
 
 ## Credenciais iniciais da migration
 
-- `enzo` / `Imperio@enzo123`
-- `rafa` / `Imperio@rafa123`
-- `marcos` / `Imperio@marcos123`
+- `lucas` / `ferreira`
+- `alexandre` / `ferreira`
+- `ryan` / `ferreira`
+- `peixoto` / `ferreira`
 
 ## Como rodar
 

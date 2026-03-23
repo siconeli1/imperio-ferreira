@@ -46,8 +46,8 @@ export default function AdminLoginPage() {
             Cada profissional acessa apenas a propria rotina: agenda do dia, marcacoes manuais, bloqueios e horarios personalizados.
           </p>
           <div className="mt-10 space-y-4 text-sm text-[var(--muted)]">
-            <p>Logins iniciais da migration: `enzo`, `rafa` e `marcos`.</p>
-            <p>Senhas iniciais: `Imperio@enzo123`, `Imperio@rafa123` e `Imperio@marcos123`.</p>
+            <p>Logins iniciais da migration: `lucas`, `alexandre`, `ryan` e `peixoto`.</p>
+            <p>Senha inicial para todos: `ferreira`.</p>
           </div>
         </section>
 
@@ -88,3 +88,4 @@ export default function AdminLoginPage() {
     </main>
   );
 }
+

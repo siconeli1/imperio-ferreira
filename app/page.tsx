@@ -16,9 +16,10 @@ const diferenciais = [
 ];
 
 const barbeiros = [
-  { nome: "Enzo Ferreira", destaque: "Fade, tesoura e acabamento classico" },
-  { nome: "Rafael Costa", destaque: "Barba desenhada e cortes executivos" },
-  { nome: "Marcos Lima", destaque: "Combos completos e ritmo de atendimento rapido" },
+  { nome: "Lucas Cantelle", destaque: "Cortes classicos, acabamento limpo e ritmo de atendimento consistente" },
+  { nome: "Alexandre Albertini", destaque: "Barba desenhada, atendimento executivo e acabamento preciso" },
+  { nome: "Ryan Ferreira", destaque: "Combos completos, leitura rapida de agenda e execucao dinamica" },
+  { nome: "Peixoto", destaque: "Presenca de cadeira, atendimento direto e acabamento marcante" },
 ];
 
 export default function Home() {
