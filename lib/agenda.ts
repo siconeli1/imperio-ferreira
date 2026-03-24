@@ -5,52 +5,34 @@ export type DailyPeriod = {
 
 export type DailySchedule = {
   periods: DailyPeriod[]
-  lastStart: string
 }
 
 export const DAILY_SCHEDULE: Record<number, DailySchedule> = {
   1: {
-    periods: [
-      { start: '08:30', end: '12:00' },
-      { start: '14:00', end: '20:00' },
-    ],
-    lastStart: '19:00',
+    periods: [{ start: '09:00', end: '19:00' }],
   },
   2: {
-    periods: [
-      { start: '08:30', end: '12:00' },
-      { start: '14:00', end: '20:00' },
-    ],
-    lastStart: '19:00',
+    periods: [{ start: '09:00', end: '19:00' }],
   },
   3: {
-    periods: [
-      { start: '08:30', end: '12:00' },
-      { start: '14:00', end: '20:00' },
-    ],
-    lastStart: '19:00',
+    periods: [{ start: '09:00', end: '19:00' }],
   },
   4: {
-    periods: [
-      { start: '08:30', end: '12:00' },
-      { start: '14:00', end: '20:00' },
-    ],
-    lastStart: '19:00',
+    periods: [{ start: '09:00', end: '20:00' }],
   },
   5: {
-    periods: [
-      { start: '08:30', end: '12:00' },
-      { start: '14:00', end: '20:00' },
-    ],
-    lastStart: '19:00',
+    periods: [{ start: '08:00', end: '20:00' }],
+  },
+  6: {
+    periods: [{ start: '09:00', end: '15:00' }],
   },
 }
 
 export const AGENDA_CONFIG = {
   timezone: 'America/Sao_Paulo',
   openDays: Object.keys(DAILY_SCHEDULE).map((d) => Number(d)),
-  slotMinutes: 10,
-  visibleSlotMinutes: 20,
+  slotMinutes: 30,
+  visibleSlotMinutes: 30,
 }
 
 export function timeToMinutes(hhmm: string) {
@@ -81,7 +63,6 @@ export function getScheduleBounds(day: number) {
   return {
     start: timeToMinutes(firstPeriod.start),
     end: timeToMinutes(lastPeriod.end),
-    lastStart: timeToMinutes(schedule.lastStart),
   }
 }
 
@@ -93,11 +74,6 @@ export function isAppointmentWithinSchedule(day: number, startMinutes: number, d
   }
 
   const endMinutes = startMinutes + durationMinutes
-  const lastStart = timeToMinutes(schedule.lastStart)
-
-  if (startMinutes > lastStart) {
-    return false
-  }
 
   return schedule.periods.some((period) => {
     const periodStart = timeToMinutes(period.start)
@@ -115,13 +91,12 @@ export function generateSlots(day: number, durationMinutes = AGENDA_CONFIG.slotM
   }
 
   const step = AGENDA_CONFIG.slotMinutes
-  const lastStart = timeToMinutes(schedule.lastStart)
   const slots: { hora_inicio: string; hora_fim: string }[] = []
 
   for (const period of schedule.periods) {
     const start = timeToMinutes(period.start)
     const end = timeToMinutes(period.end)
-    const maxStart = Math.min(lastStart, end - durationMinutes)
+    const maxStart = end - durationMinutes
 
     for (let t = start; t <= maxStart; t += step) {
       slots.push({
@@ -134,24 +109,8 @@ export function generateSlots(day: number, durationMinutes = AGENDA_CONFIG.slotM
   return slots
 }
 
-export function generateCandidateStartTimes(
-  day: number,
-  durationMinutes: number,
-  busyIntervals: Array<{ inicio: number; fim: number }> = []
-) {
-  const schedule = getScheduleForDay(day)
-
-  if (!schedule) {
-    return []
-  }
-
-  const gridStarts = generateSlots(day, durationMinutes).map((slot) => timeToMinutes(slot.hora_inicio))
-  const dynamicStarts = busyIntervals.flatMap((intervalo) => [intervalo.inicio, intervalo.fim])
-  const starts = new Set<number>([...gridStarts, ...dynamicStarts])
-
-  return Array.from(starts)
-    .filter((start) => isAppointmentWithinSchedule(day, start, durationMinutes))
-    .sort((a, b) => a - b)
+export function generateCandidateStartTimes(day: number, durationMinutes: number) {
+  return generateSlots(day, durationMinutes).map((slot) => timeToMinutes(slot.hora_inicio))
 }
 
 export function reduceVisibleSlots(slots: { hora_inicio: string; hora_fim: string }[]) {
@@ -160,32 +119,7 @@ export function reduceVisibleSlots(slots: { hora_inicio: string; hora_fim: strin
   }
 
   const visibleStep = AGENDA_CONFIG.visibleSlotMinutes
-  const internalStep = AGENDA_CONFIG.slotMinutes
-  const groups: { hora_inicio: string; hora_fim: string }[][] = []
-
-  for (const slot of slots) {
-    const currentGroup = groups[groups.length - 1]
-
-    if (!currentGroup) {
-      groups.push([slot])
-      continue
-    }
-
-    const previousSlot = currentGroup[currentGroup.length - 1]
-    const diff = timeToMinutes(slot.hora_inicio) - timeToMinutes(previousSlot.hora_inicio)
-
-    if (diff === internalStep) {
-      currentGroup.push(slot)
-      continue
-    }
-
-    groups.push([slot])
-  }
-
-  return groups.flatMap((group) => {
-    const filtered = group.filter((slot) => timeToMinutes(slot.hora_inicio) % visibleStep === 0)
-    return filtered.length > 0 ? filtered : [group[0]]
-  })
+  return slots.filter((slot) => timeToMinutes(slot.hora_inicio) % visibleStep === 0)
 }
 
 function getCurrentDateParts(referenceDate: Date, timeZone: string) {

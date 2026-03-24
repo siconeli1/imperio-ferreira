@@ -27,7 +27,7 @@ function buildFreeSlots(data: string, day: number, duration: number, busyState: 
 
   const slots = filterPastSlotsForDate(
     data,
-    generateCandidateStartTimes(day, duration, busyState.intervalos).map((inicio) => ({
+    generateCandidateStartTimes(day, duration).map((inicio) => ({
       hora_inicio: minutesToTime(inicio),
       hora_fim: minutesToTime(inicio + duration),
     }))

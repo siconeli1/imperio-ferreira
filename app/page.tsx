@@ -1,153 +1,195 @@
+import Image from "next/image";
 import Link from "next/link";
 
-const diferenciais = [
-  {
-    titulo: "Agenda inteligente",
-    texto: "Escolha um barbeiro especifico ou deixe o sistema encontrar o primeiro horario livre entre os profissionais ativos.",
-  },
-  {
-    titulo: "Experiencia refinada",
-    texto: "Fluxo rapido, visual premium e confirmacao clara para o cliente do inicio ao fim.",
-  },
-  {
-    titulo: "Operacao segmentada",
-    texto: "Cada barbeiro acessa apenas a propria agenda, bloqueios e horarios personalizados.",
-  },
+const servicos = [
+  { nome: "Corte de cabelo", duracao: "30 min", preco: "R$ 40" },
+  { nome: "Barba", duracao: "30 min", preco: "R$ 30" },
+  { nome: "Cabelo + barba", duracao: "1h", preco: "R$ 70" },
+  { nome: "Combo completo", duracao: "1h", preco: "R$ 75" },
+];
+
+const horarios = [
+  { dia: "Seg-Qua", hora: "09:00 - 19:00" },
+  { dia: "Quinta", hora: "09:00 - 20:00" },
+  { dia: "Sexta", hora: "08:00 - 20:00" },
+  { dia: "Sabado", hora: "09:00 - 15:00" },
 ];
 
 const barbeiros = [
-  { nome: "Lucas Cantelle", destaque: "Cortes classicos, acabamento limpo e ritmo de atendimento consistente" },
-  { nome: "Alexandre Albertini", destaque: "Barba desenhada, atendimento executivo e acabamento preciso" },
-  { nome: "Ryan Ferreira", destaque: "Combos completos, leitura rapida de agenda e execucao dinamica" },
-  { nome: "Peixoto", destaque: "Presenca de cadeira, atendimento direto e acabamento marcante" },
+  { nome: "Lucas Cantelle", detalhe: "Corte alinhado e atendimento direto" },
+  { nome: "Alexandre Albertini", detalhe: "Barba precisa e acabamento fino" },
+  { nome: "Ryan Ferreira", detalhe: "Combo rapido com leitura de agenda" },
+  { nome: "Peixoto", detalhe: "Cadeira forte e execucao marcante" },
 ];
 
 export default function Home() {
   return (
-    <main className="brand-shell min-h-screen overflow-hidden bg-[var(--background)] text-[var(--foreground)]">
-      <section className="border-b border-white/10">
-        <div className="mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-24">
-          <div className="relative">
-            <p className="mb-5 inline-flex rounded-full border border-[var(--accent)]/25 bg-[var(--accent)]/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent-strong)]">
-              Imperio Ferreira
-            </p>
-            <h1 className="max-w-3xl text-5xl font-semibold tracking-tight sm:text-6xl lg:text-7xl">
-              Barbearia premium com agenda online para varios barbeiros.
-            </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-[var(--muted)]">
-              A mesma fluidez da referencia Conceito, agora adaptada para uma operacao escalavel,
-              com atendimento individual por profissional e reserva automatica para qualquer um disponivel.
-            </p>
-            <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-              <Link
-                href="/agendar"
-                className="inline-flex items-center justify-center bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)]"
-              >
-                Agendar horario
-              </Link>
-              <Link
-                href="/meus-agendamentos"
-                className="inline-flex items-center justify-center border border-white/20 px-6 py-3 font-semibold text-white hover:bg-white/10"
-              >
-                Meus agendamentos
-              </Link>
+    <main className="brand-shell min-h-screen bg-[var(--background)] pb-28 text-[var(--foreground)]">
+      <section className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+        <div className="overflow-hidden border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))]">
+          <div className="relative px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
+            <div className="absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,rgba(210,169,95,0.24),transparent_62%)]" />
+
+            <div className="relative">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[var(--accent)]/25 bg-[var(--accent)]/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--accent-strong)]">
+                Agenda online
+              </div>
+
+              <div className="mt-6 flex justify-center lg:justify-start">
+                <Image
+                  src="/imperio-logo.jpg"
+                  alt="Logo Imperio Ferreira"
+                  width={210}
+                  height={210}
+                  priority
+                  className="h-auto w-[170px] sm:w-[210px]"
+                />
+              </div>
+
+              <div className="mx-auto mt-4 max-w-2xl text-center lg:mx-0 lg:text-left">
+                <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
+                  Reserve seu horario em poucos toques.
+                </h1>
+                <p className="mt-4 text-base leading-7 text-[var(--muted)] sm:text-lg">
+                  Escolha o servico, selecione o barbeiro ou qualquer um disponivel e confirme pelo Google.
+                </p>
+              </div>
+
+              <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:max-w-xl">
+                <Link
+                  href="/agendar"
+                  className="inline-flex min-h-13 items-center justify-center bg-[var(--accent)] px-6 py-4 text-base font-semibold text-black hover:bg-[var(--accent-strong)]"
+                >
+                  Agendar agora
+                </Link>
+                <Link
+                  href="/meus-agendamentos"
+                  className="inline-flex min-h-13 items-center justify-center border border-white/20 bg-black/20 px-6 py-4 text-base font-semibold text-white hover:bg-white/10"
+                >
+                  Ver meus horarios
+                </Link>
+              </div>
+
+              <div className="mt-7 grid grid-cols-2 gap-3 lg:max-w-xl">
+                <QuickStat label="Reserva" value="30 em 30 min" />
+                <QuickStat label="Equipe" value="4 barbeiros" />
+                <QuickStat label="Sabado" value="09:00 - 15:00" />
+                <QuickStat label="Domingo" value="Fechado" />
+              </div>
             </div>
-            <div className="mt-12 grid gap-4 sm:grid-cols-3">
-              {diferenciais.map((item) => (
-                <div key={item.titulo} className="border border-white/10 bg-white/[0.03] p-5">
-                  <p className="text-sm uppercase tracking-[0.24em] text-[var(--accent-strong)]">Destaque</p>
-                  <h2 className="mt-3 text-xl font-semibold">{item.titulo}</h2>
-                  <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{item.texto}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-6xl gap-4 px-4 pb-6 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
+        <div className="border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.22em] text-[var(--accent-strong)]">Servicos</p>
+              <h2 className="mt-2 text-2xl font-semibold">Escolha rapido</h2>
+            </div>
+            <Link href="/agendar" className="text-sm font-semibold text-[var(--accent-strong)] hover:text-white">
+              Abrir agenda
+            </Link>
+          </div>
+
+          <div className="mt-5 grid gap-3">
+            {servicos.map((servico) => (
+              <div key={servico.nome} className="grid grid-cols-[1fr_auto] gap-3 border border-white/10 bg-black/20 p-4">
+                <div>
+                  <p className="font-semibold text-white">{servico.nome}</p>
+                  <p className="mt-1 text-sm text-[var(--muted)]">{servico.duracao}</p>
+                </div>
+                <div className="self-center text-right font-semibold text-[var(--accent-strong)]">{servico.preco}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-4">
+          <section className="border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+            <p className="text-xs uppercase tracking-[0.22em] text-[var(--accent-strong)]">Funcionamento</p>
+            <div className="mt-5 grid gap-3">
+              {horarios.map((item) => (
+                <div key={item.dia} className="flex items-center justify-between gap-4 border border-white/10 bg-black/20 px-4 py-3">
+                  <span className="font-semibold text-white">{item.dia}</span>
+                  <span className="text-sm text-[var(--muted)]">{item.hora}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between gap-4 border border-white/10 bg-black/20 px-4 py-3">
+                <span className="font-semibold text-white">Domingo</span>
+                <span className="text-sm text-[var(--muted)]">Fechado</span>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
+              Cada barbeiro usa bloqueios individuais para almoco e pausas. A barbearia continua aberta durante o expediente.
+            </p>
+          </section>
+
+          <section className="border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+            <p className="text-xs uppercase tracking-[0.22em] text-[var(--accent-strong)]">Barbeiros</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {barbeiros.map((barbeiro, index) => (
+                <div key={barbeiro.nome} className="grid grid-cols-[42px_1fr] gap-3 border border-white/10 bg-black/20 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--accent)]/40 text-sm font-semibold text-[var(--accent-strong)]">
+                    {index + 1}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-white">{barbeiro.nome}</p>
+                    <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{barbeiro.detalhe}</p>
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
+        </div>
+      </section>
 
-          <div className="grid gap-5">
-            <div className="border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] p-8">
-              <p className="text-xs uppercase tracking-[0.28em] text-[var(--accent-strong)]">Rotina da casa</p>
-              <div className="mt-8 space-y-5">
-                <div className="border-l border-[var(--accent)] pl-4">
-                  <p className="text-sm text-[var(--muted)]">Segunda a sexta</p>
-                  <p className="text-2xl font-semibold">08:30 - 12:00</p>
-                </div>
-                <div className="border-l border-[var(--accent)] pl-4">
-                  <p className="text-sm text-[var(--muted)]">Retorno do expediente</p>
-                  <p className="text-2xl font-semibold">14:00 - 20:00</p>
-                  <p className="mt-2 text-sm text-[var(--muted)]">Ultimo inicio de atendimento: 19:00</p>
-                </div>
-              </div>
+      <section className="mx-auto max-w-6xl px-4 pb-8 sm:px-6 lg:px-8">
+        <div className="border border-white/10 bg-[linear-gradient(135deg,rgba(210,169,95,0.12),rgba(255,255,255,0.02))] p-5 sm:p-6">
+          <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <p className="text-xs uppercase tracking-[0.22em] text-[var(--accent-strong)]">Praticidade</p>
+              <h2 className="mt-2 text-2xl font-semibold">Entrou, escolheu, confirmou.</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+                O foco aqui e rapidez no celular: login pelo Google, poucos passos e reserva salva na sua conta.
+              </p>
             </div>
-            <div className="border border-white/10 bg-black/30 p-8">
-              <p className="text-xs uppercase tracking-[0.28em] text-[var(--accent-strong)]">Time de barbeiros</p>
-              <div className="mt-6 space-y-4">
-                {barbeiros.map((barbeiro, index) => (
-                  <div key={barbeiro.nome} className="grid grid-cols-[48px_1fr] items-center gap-4 border border-white/8 bg-white/[0.03] p-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[var(--accent)]/40 text-sm font-semibold text-[var(--accent-strong)]">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className="text-lg font-semibold">{barbeiro.nome}</p>
-                      <p className="text-sm text-[var(--muted)]">{barbeiro.destaque}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <Link
+              href="/agendar"
+              className="inline-flex min-h-12 items-center justify-center border border-white/20 bg-black/20 px-5 py-3 font-semibold hover:bg-white/10"
+            >
+              Comecar reserva
+            </Link>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-        <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="border border-white/10 bg-white/[0.03] p-8">
-            <p className="text-xs uppercase tracking-[0.28em] text-[var(--accent-strong)]">Como funciona</p>
-            <h2 className="mt-4 text-3xl font-semibold">Agendamento desenhado para varias cadeiras.</h2>
-            <div className="mt-8 space-y-6 text-[var(--muted)]">
-              <div>
-                <p className="text-white">1. Escolha o servico</p>
-                <p className="mt-2 leading-7">A duracao e o valor sao carregados automaticamente a partir do catalogo global da barbearia.</p>
-              </div>
-              <div>
-                <p className="text-white">2. Selecione um barbeiro ou qualquer um disponivel</p>
-                <p className="mt-2 leading-7">Quando o cliente escolhe qualquer um disponivel, o backend consolida as agendas individuais e decide a reserva no momento da confirmacao.</p>
-              </div>
-              <div>
-                <p className="text-white">3. Admin separado por profissional</p>
-                <p className="mt-2 leading-7">Cada barbeiro faz login com a propria credencial e gerencia apenas os proprios compromissos e bloqueios.</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-6 sm:grid-cols-2">
-            <div className="border border-white/10 bg-black/25 p-7">
-              <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Cliente</p>
-              <h3 className="mt-4 text-2xl font-semibold">Fluxo publico completo</h3>
-              <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-                Home institucional, agendamento online, resumo da reserva, meus agendamentos por celular e cancelamento.
-              </p>
-            </div>
-            <div className="border border-white/10 bg-black/25 p-7">
-              <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Operacao</p>
-              <h3 className="mt-4 text-2xl font-semibold">Area administrativa por barbeiro</h3>
-              <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-                Agenda do dia, visao semanal, marcacoes manuais, bloqueios e atualizacao de status sem cruzar dados entre perfis.
-              </p>
-            </div>
-            <div className="border border-white/10 bg-black/25 p-7 sm:col-span-2">
-              <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Acesso rapido</p>
-              <div className="mt-5 flex flex-col gap-4 sm:flex-row">
-                <Link href="/admin/login" className="inline-flex items-center justify-center border border-white/20 px-6 py-3 font-semibold hover:bg-white/10">
-                  Entrar na area admin
-                </Link>
-                <Link href="/agendar" className="inline-flex items-center justify-center bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)]">
-                  Iniciar novo agendamento
-                </Link>
-              </div>
-            </div>
-          </div>
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-[rgba(4,7,6,0.94)] p-3 backdrop-blur md:hidden">
+        <div className="mx-auto grid max-w-md grid-cols-2 gap-3">
+          <Link
+            href="/meus-agendamentos"
+            className="inline-flex min-h-12 items-center justify-center border border-white/15 bg-black/20 px-4 py-3 text-sm font-semibold text-white hover:bg-white/10"
+          >
+            Meus horarios
+          </Link>
+          <Link
+            href="/agendar"
+            className="inline-flex min-h-12 items-center justify-center bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-black hover:bg-[var(--accent-strong)]"
+          >
+            Agendar
+          </Link>
         </div>
-      </section>
+      </div>
     </main>
+  );
+}
+
+function QuickStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-white/10 bg-black/20 px-4 py-3">
+      <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--muted)]">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-white">{value}</p>
+    </div>
   );
 }

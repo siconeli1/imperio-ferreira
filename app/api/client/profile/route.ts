@@ -22,8 +22,8 @@ export async function POST(request: Request) {
     const telefone = normalizePhone(body?.telefone);
     const dataNascimento = String(body?.data_nascimento ?? "").trim();
 
-    if (!nome || !telefone || !dataNascimento) {
-      return NextResponse.json({ erro: "Nome, telefone e data de nascimento sao obrigatorios." }, { status: 400 });
+    if (!nome || !telefone) {
+      return NextResponse.json({ erro: "Nome e telefone sao obrigatorios." }, { status: 400 });
     }
 
     const existing = await getCustomerProfileByAuthUserId(auth.authUserId);
@@ -37,12 +37,18 @@ export async function POST(request: Request) {
         auth_user_id: auth.authUserId,
         nome,
         telefone,
-        data_nascimento: dataNascimento,
+        data_nascimento: dataNascimento || null,
       })
       .select("*")
       .single();
 
     if (error) {
+      if (error.message?.includes("data_nascimento")) {
+        return NextResponse.json(
+          { erro: "O banco ainda exige data de nascimento. Aplique a migration que torna esse campo opcional no cadastro do cliente." },
+          { status: 500 }
+        );
+      }
       return NextResponse.json({ erro: error.message }, { status: 500 });
     }
 

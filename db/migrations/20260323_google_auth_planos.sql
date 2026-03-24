@@ -14,10 +14,10 @@ ALTER TABLE public.servicos
 
 UPDATE public.servicos
 SET categoria = CASE
-  WHEN codigo IN ('corte-classico', 'cabelo') THEN 'corte'
-  WHEN codigo IN ('barba-modelada', 'barba') THEN 'barba'
+  WHEN codigo IN ('corte-de-cabelo', 'cabelo') THEN 'corte'
+  WHEN codigo IN ('barba') THEN 'barba'
   WHEN codigo IN ('sobrancelha') THEN 'sobrancelha'
-  WHEN codigo IN ('corte-barba', 'combo-barba-corte-sobrancelha') THEN 'combo'
+  WHEN codigo IN ('cabelo-barba', 'combo-cabelo-barba-sobrancelha', 'corte-cabelo-sobrancelha') THEN 'combo'
   ELSE 'outro'
 END;
 
@@ -26,10 +26,13 @@ CREATE TABLE IF NOT EXISTS public.clientes (
   auth_user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
   nome TEXT NOT NULL,
   telefone TEXT NOT NULL,
-  data_nascimento DATE NOT NULL,
+  data_nascimento DATE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
 );
+
+ALTER TABLE public.clientes
+  ALTER COLUMN data_nascimento DROP NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.clientes_telefone_historico (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -196,10 +199,13 @@ END $$;
 
 INSERT INTO public.servicos (id, codigo, nome, duracao_minutos, preco, ativo, ordem, categoria)
 VALUES
-  ('corte-classico', 'corte-classico', 'Corte classico', 45, 45, true, 1, 'corte'),
-  ('barba-modelada', 'barba-modelada', 'Barba modelada', 35, 35, true, 2, 'barba'),
-  ('sobrancelha', 'sobrancelha', 'Sobrancelha', 20, 20, true, 3, 'sobrancelha'),
-  ('corte-barba', 'corte-barba', 'Corte e barba', 70, 75, true, 4, 'combo')
+  ('barba', 'barba', 'Barba', 30, 30, true, 1, 'barba'),
+  ('acabamento', 'acabamento', 'Acabamento', 10, 15, true, 2, 'outro'),
+  ('cabelo-barba', 'cabelo-barba', 'Cabelo + barba', 60, 70, true, 3, 'combo'),
+  ('combo-cabelo-barba-sobrancelha', 'combo-cabelo-barba-sobrancelha', 'Combo cabelo + barba + sobrancelha', 60, 75, true, 4, 'combo'),
+  ('corte-de-cabelo', 'corte-de-cabelo', 'Corte de cabelo', 30, 40, true, 5, 'corte'),
+  ('corte-cabelo-sobrancelha', 'corte-cabelo-sobrancelha', 'Corte de cabelo + sobrancelha', 30, 50, true, 6, 'combo'),
+  ('depilacao-nariz', 'depilacao-nariz', 'Depilacao de nariz', 10, 20, true, 7, 'outro')
 ON CONFLICT (id) DO UPDATE SET
   codigo = EXCLUDED.codigo,
   nome = EXCLUDED.nome,

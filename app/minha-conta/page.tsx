@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { useCustomerSession } from "@/lib/use-customer-session";
 
 type DashboardPayload = {
   profile: Record<string, unknown> | null;
@@ -14,47 +14,54 @@ type DashboardPayload = {
 };
 
 export default function MinhaContaPage() {
-  const supabase = getSupabaseBrowserClient();
+  const { accessToken, profile, sessionReady, signInWithGoogle, signOut } = useCustomerSession();
   const [loading, setLoading] = useState(true);
+  const [loadingLogin, setLoadingLogin] = useState(false);
   const [erro, setErro] = useState("");
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
 
-  const loadDashboard = useCallback(async () => {
-    setLoading(true);
-    setErro("");
-
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-
-    if (!token) {
-      setDashboard(null);
-      setLoading(false);
-      return;
-    }
-
-    const res = await fetch("/api/client/dashboard", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const json = await res.json();
-
-    if (!res.ok) {
-      setErro(json.erro || "Erro ao carregar sua conta.");
-      setLoading(false);
-      return;
-    }
-
-    setDashboard(json);
-    setLoading(false);
-  }, [supabase]);
-
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadDashboard();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [loadDashboard]);
+    async function loadDashboard() {
+      if (!accessToken || !profile) {
+        setDashboard(null);
+        setLoading(false);
+        return;
+      }
 
-  const profile = dashboard?.profile ?? null;
+      setLoading(true);
+      setErro("");
+
+      const res = await fetch("/api/client/dashboard", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        setErro(json.erro || "Erro ao carregar sua conta.");
+        setLoading(false);
+        return;
+      }
+
+      setDashboard(json);
+      setLoading(false);
+    }
+
+    void loadDashboard();
+  }, [accessToken, profile]);
+
+  async function handleGoogleLogin() {
+    setLoadingLogin(true);
+    const { error } = await signInWithGoogle("/minha-conta");
+    if (error) {
+      setErro(error.message);
+      setLoadingLogin(false);
+    }
+  }
+
+  async function handleLogout() {
+    await signOut();
+  }
+
   const assinatura = dashboard?.assinatura ?? null;
   const plano = dashboard?.plano ?? null;
   const reservas = dashboard?.reservas ?? [];
@@ -66,25 +73,67 @@ export default function MinhaContaPage() {
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <Link href="/" className="text-[var(--muted)] hover:text-white">Voltar</Link>
+            <Link href="/" className="text-[var(--muted)] hover:text-white">
+              Voltar
+            </Link>
             <h1 className="mt-4 text-4xl font-semibold">Minha conta</h1>
-            <p className="mt-2 text-[var(--muted)]">Plano atual, saldo por servico, historico de uso, reservas e financeiro.</p>
+            <p className="mt-2 text-[var(--muted)]">
+              Plano atual, saldo por servico, historico de uso, reservas e financeiro.
+            </p>
           </div>
-          <Link href="/login" className="border border-white/20 px-5 py-3 font-semibold hover:bg-white/10">Gerenciar login</Link>
+          <Link href="/login?next=/minha-conta" className="border border-white/20 px-5 py-3 font-semibold hover:bg-white/10">
+            Gerenciar conta
+          </Link>
         </div>
 
         {erro && <div className="mb-6 border border-red-700 bg-red-950/60 px-4 py-3 text-red-200">{erro}</div>}
-        {loading && <p className="text-[var(--muted)]">Carregando...</p>}
-        {!loading && !profile && <p className="text-[var(--muted)]">Faca login com Google para acessar sua area.</p>}
+        {!sessionReady && <p className="text-[var(--muted)]">Carregando...</p>}
 
-        {!loading && profile && (
+        {sessionReady && !accessToken && (
+          <section className="border border-white/10 bg-white/[0.03] p-8">
+            <h2 className="text-2xl font-semibold">Entre com Google para acessar sua conta</h2>
+            <p className="mt-4 text-[var(--muted)]">Sua area do cliente usa a mesma conta Google do agendamento.</p>
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loadingLogin}
+              className="mt-8 bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)] disabled:opacity-50"
+            >
+              {loadingLogin ? "Redirecionando..." : "Entrar com Google"}
+            </button>
+          </section>
+        )}
+
+        {sessionReady && accessToken && !profile && !loading && (
+          <section className="border border-white/10 bg-white/[0.03] p-8">
+            <h2 className="text-2xl font-semibold">Cadastro pendente</h2>
+            <p className="mt-4 text-[var(--muted)]">
+              Esta conta Google ainda nao foi finalizada no sistema. Complete seu cadastro para liberar esta area.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/login?next=/minha-conta" className="inline-flex border border-white/20 px-6 py-3 font-semibold hover:bg-white/10">
+                Completar cadastro
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="inline-flex border border-white/20 px-6 py-3 font-semibold hover:bg-white/10"
+              >
+                Sair e trocar conta
+              </button>
+            </div>
+          </section>
+        )}
+
+        {sessionReady && accessToken && profile && loading && <p className="text-[var(--muted)]">Carregando...</p>}
+
+        {sessionReady && accessToken && profile && !loading && (
           <div className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
             <section className="space-y-6">
               <div className="border border-white/10 bg-white/[0.03] p-6">
                 <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Perfil</p>
                 <h2 className="mt-4 text-2xl font-semibold">{String(profile.nome ?? "Cliente")}</h2>
                 <p className="mt-2 text-[var(--muted)]">Telefone: {String(profile.telefone ?? "-")}</p>
-                <p className="mt-1 text-[var(--muted)]">Nascimento: {String(profile.data_nascimento ?? "-")}</p>
               </div>
 
               <div className="border border-white/10 bg-white/[0.03] p-6">
@@ -126,7 +175,9 @@ export default function MinhaContaPage() {
                   {reservas.map((item) => (
                     <div key={String(item.id)} className="border border-white/10 bg-black/20 p-4">
                       <p className="font-semibold">{String(item.servico_nome ?? "Servico")}</p>
-                      <p className="mt-2 text-sm text-[var(--muted)]">{String(item.data ?? "-")} - {String(item.hora_inicio ?? "-")} - {String(item.hora_fim ?? "-")}</p>
+                      <p className="mt-2 text-sm text-[var(--muted)]">
+                        {String(item.data ?? "-")} - {String(item.hora_inicio ?? "-")} - {String(item.hora_fim ?? "-")}
+                      </p>
                       <p className="mt-2 text-sm text-[var(--muted)]">Status: {String(item.status_agendamento ?? "agendado")}</p>
                       <p className="mt-1 text-sm text-[var(--muted)]">Cobranca: {String(item.tipo_cobranca ?? "avulso")}</p>
                     </div>
@@ -142,7 +193,9 @@ export default function MinhaContaPage() {
                     <div key={String(item.id)} className="flex items-center justify-between gap-4 border border-white/10 bg-black/20 p-4 text-sm">
                       <div>
                         <p className="font-medium">{String(item.descricao ?? "-")}</p>
-                        <p className="mt-1 text-[var(--muted)]">{String(item.categoria_financeira ?? "-")} - {String(item.competencia ?? "-")}</p>
+                        <p className="mt-1 text-[var(--muted)]">
+                          {String(item.categoria_financeira ?? "-")} - {String(item.competencia ?? "-")}
+                        </p>
                       </div>
                       <div className="font-semibold">
                         {Number(item.valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}

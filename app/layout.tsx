@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { CustomerAccountBar } from "@/app/_components/CustomerAccountBar";
 
 export const metadata: Metadata = {
   title: "Imperio Ferreira",
@@ -13,7 +14,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <CustomerAccountBar />
+        {children}
+      </body>
     </html>
   );
 }

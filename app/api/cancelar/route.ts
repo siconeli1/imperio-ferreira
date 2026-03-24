@@ -4,6 +4,7 @@ import { canCancelAppointment } from "@/lib/agendamento-rules";
 import { supabase } from "@/lib/supabase";
 import { getAdminSession } from "@/lib/admin-auth";
 import { liquidarCreditosDoAgendamento } from "@/lib/agendamento-planos";
+import { getCustomerAuthFromRequest } from "@/lib/customer-auth";
 
 export async function POST(req: Request) {
   try {
@@ -11,6 +12,7 @@ export async function POST(req: Request) {
     const id = String(body?.id ?? "");
     const celular = normalizePhone(body?.celular);
     const adminSession = await getAdminSession();
+    const customerAuth = await getCustomerAuthFromRequest(req);
 
     if (!id) {
       return NextResponse.json({ erro: "ID nao informado" }, { status: 400 });
@@ -18,7 +20,7 @@ export async function POST(req: Request) {
 
     const { data: agendamento, error: loadError } = await supabase
       .from("agendamentos")
-      .select("id, barbeiro_id, celular_cliente, data, hora_inicio, hora_fim, cancelavel_ate, status, status_agendamento, status_atendimento, status_pagamento, origem_agendamento")
+      .select("id, barbeiro_id, auth_user_id, celular_cliente, data, hora_inicio, hora_fim, cancelavel_ate, status, status_agendamento, status_atendimento, status_pagamento, origem_agendamento")
       .eq("id", id)
       .maybeSingle();
 
@@ -32,6 +34,10 @@ export async function POST(req: Request) {
 
     if (adminSession) {
       if (agendamento.barbeiro_id !== adminSession.barbeiro_id) {
+        return NextResponse.json({ erro: "Nao autorizado a cancelar este agendamento" }, { status: 403 });
+      }
+    } else if (customerAuth) {
+      if (agendamento.auth_user_id !== customerAuth.authUserId) {
         return NextResponse.json({ erro: "Nao autorizado a cancelar este agendamento" }, { status: 403 });
       }
     } else {

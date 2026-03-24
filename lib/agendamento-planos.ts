@@ -21,7 +21,7 @@ export async function decidirCobrancaItens(clienteId: string, servicos: Servico[
         status_credito: "nao_aplicavel" as const,
         assinatura_id: null,
       })),
-      itensSemSaldo: servicos.filter((servico) => categoriaPodeUsarPlano(servico.categoria)),
+      itensSemSaldo: [],
     };
   }
 

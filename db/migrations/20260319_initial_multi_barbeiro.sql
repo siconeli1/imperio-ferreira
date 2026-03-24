@@ -138,10 +138,13 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO public.servicos (id, codigo, nome, duracao_minutos, preco, ativo, ordem)
 VALUES
-  ('corte-classico', 'corte-classico', 'Corte classico', 45, 45, true, 1),
-  ('barba-modelada', 'barba-modelada', 'Barba modelada', 35, 35, true, 2),
-  ('corte-barba', 'corte-barba', 'Corte e barba', 70, 75, true, 3),
-  ('pigmentacao-acabamento', 'pigmentacao-acabamento', 'Pigmentacao e acabamento', 30, 30, true, 4)
+  ('barba', 'barba', 'Barba', 30, 30, true, 1),
+  ('acabamento', 'acabamento', 'Acabamento', 10, 15, true, 2),
+  ('cabelo-barba', 'cabelo-barba', 'Cabelo + barba', 60, 70, true, 3),
+  ('combo-cabelo-barba-sobrancelha', 'combo-cabelo-barba-sobrancelha', 'Combo cabelo + barba + sobrancelha', 60, 75, true, 4),
+  ('corte-de-cabelo', 'corte-de-cabelo', 'Corte de cabelo', 30, 40, true, 5),
+  ('corte-cabelo-sobrancelha', 'corte-cabelo-sobrancelha', 'Corte de cabelo + sobrancelha', 30, 50, true, 6),
+  ('depilacao-nariz', 'depilacao-nariz', 'Depilacao de nariz', 10, 20, true, 7)
 ON CONFLICT (id) DO UPDATE SET
   codigo = EXCLUDED.codigo,
   nome = EXCLUDED.nome,
