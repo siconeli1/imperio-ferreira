@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-auth";
+import { buildCustomerEmailMap } from "@/lib/admin-customers";
 import { listarPlanosAtivos, type Plano } from "@/lib/planos";
 import { sincronizarAssinaturas } from "@/lib/assinaturas";
 import { supabase } from "@/lib/supabase";
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
     const [clientesRes, assinaturasRes, planos] = await Promise.all([
       supabase
         .from("clientes")
-        .select("id, nome, telefone, created_at")
+        .select("id, auth_user_id, nome, telefone, created_at")
         .order("nome", { ascending: true }),
       supabase
         .from("assinaturas")
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
 
     const planoById = new Map((planos as Plano[]).map((item) => [item.id, item]));
     const assinaturaByCliente = new Map((assinaturasRes.data ?? []).map((item) => [item.cliente_id, item]));
+    const emailByAuthUserId = await buildCustomerEmailMap((clientesRes.data ?? []).map((cliente) => cliente.auth_user_id));
 
     let clientes = await Promise.all((clientesRes.data ?? []).map(async (cliente) => {
       const ultimaVisitaRes = await supabase
@@ -51,6 +53,7 @@ export async function GET(request: Request) {
       const assinatura = assinaturaByCliente.get(cliente.id);
       return {
         ...cliente,
+        email_google: emailByAuthUserId.get(cliente.auth_user_id) ?? null,
         ultima_visita: ultimaVisitaRes.data?.data ?? null,
         plano_ativo: assinatura?.plano_id ?? null,
         plano_nome: assinatura?.plano_id ? planoById.get(assinatura.plano_id)?.nome ?? assinatura.plano_id : null,

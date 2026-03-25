@@ -3,7 +3,33 @@ import { supabase } from "@/lib/supabase";
 import { calcularValorFinal, syncAutoClosedAgendamentos } from "@/lib/agendamento";
 import { canCancelAppointment, canConcludeAppointment, canMarkNoShow } from "@/lib/agendamento-rules";
 import { requireAdminSession } from "@/lib/admin-auth";
-import { liquidarCreditosDoAgendamento, registrarReceitaAvulsaDoAgendamento } from "@/lib/agendamento-planos";
+import {
+  calcularValorFinalDosItens,
+  decidirCobrancaItens,
+  liquidarCreditosDoAgendamento,
+  registrarReceitaAvulsaDoAgendamento,
+  reservarCreditosDoAgendamento,
+} from "@/lib/agendamento-planos";
+import { getBusyIntervals, overlaps, parseTimeToMinutes } from "@/lib/agenda-conflicts";
+import { minutesToTime } from "@/lib/agenda";
+import { encontrarServicoAtivo } from "@/lib/servicos";
+import { normalizePhone } from "@/lib/phone";
+
+function buildCancelavelAte(data: string, horaInicio: string) {
+  const [year, month, day] = data.split("-").map(Number);
+  const [hour, minute] = horaInicio.slice(0, 5).split(":").map(Number);
+  return new Date(year, month - 1, day, hour, minute - 20).toISOString();
+}
+
+function describeConflictType(tipo: "agendamento" | "horario_customizado" | "bloqueio") {
+  if (tipo === "agendamento") {
+    return "Ja existe um agendamento nesse intervalo.";
+  }
+  if (tipo === "horario_customizado") {
+    return "Ja existe uma reserva manual nesse intervalo.";
+  }
+  return "Existe um bloqueio ativo nesse intervalo.";
+}
 
 export async function GET(req: Request) {
   try {
@@ -180,6 +206,170 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: true, agendamento: atualizado });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro interno ao atualizar agendamento.";
+    return NextResponse.json({ erro: message }, { status: message === "Nao autorizado" ? 401 : 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const session = await requireAdminSession();
+    const body = await req.json();
+    const data = String(body?.data ?? "").trim();
+    const horaInicio = String(body?.hora_inicio ?? "").trim();
+    const servicoId = String(body?.servico_id ?? "").trim();
+    const clienteId = body?.cliente_id ? String(body.cliente_id).trim() : "";
+    const nomeManual = String(body?.nome_cliente ?? "").trim();
+    const celularManual = normalizePhone(body?.celular_cliente) || "";
+    const observacoes = body?.observacoes ? String(body.observacoes) : null;
+
+    if (!data || !horaInicio || !servicoId) {
+      return NextResponse.json({ erro: "Data, horario e servico sao obrigatorios." }, { status: 400 });
+    }
+
+    const servico = await encontrarServicoAtivo({ id: servicoId });
+    if (!servico) {
+      return NextResponse.json({ erro: "Servico nao encontrado." }, { status: 404 });
+    }
+
+    let clienteIdFinal: string | null = null;
+    let authUserIdFinal: string | null = null;
+    let nomeClienteFinal = nomeManual;
+    let celularClienteFinal = celularManual;
+
+    if (clienteId) {
+      const { data: cliente, error: clienteError } = await supabase
+        .from("clientes")
+        .select("id, auth_user_id, nome, telefone")
+        .eq("id", clienteId)
+        .maybeSingle();
+
+      if (clienteError) {
+        return NextResponse.json({ erro: clienteError.message }, { status: 500 });
+      }
+
+      if (!cliente) {
+        return NextResponse.json({ erro: "Cliente nao encontrado." }, { status: 404 });
+      }
+
+      clienteIdFinal = cliente.id;
+      authUserIdFinal = cliente.auth_user_id;
+      nomeClienteFinal = cliente.nome;
+      celularClienteFinal = cliente.telefone;
+    }
+
+    if (!nomeClienteFinal || !celularClienteFinal) {
+      return NextResponse.json({ erro: "Selecione um cliente cadastrado ou informe nome e celular." }, { status: 400 });
+    }
+
+    const inicioReserva = parseTimeToMinutes(horaInicio);
+    const fimReserva = inicioReserva + Number(servico.duracao_minutos);
+
+    const busyState = await getBusyIntervals(data, session.barbeiro_id);
+    if (busyState.bloqueioDiaInteiro) {
+      return NextResponse.json({ erro: "Voce bloqueou o dia inteiro para esta data." }, { status: 409 });
+    }
+    if (busyState.naoAceitarMais) {
+      return NextResponse.json({ erro: "Existe um bloqueio de nao aceitar mais horarios nessa data." }, { status: 409 });
+    }
+
+    const conflito = busyState.intervalos.find((intervalo) => overlaps(inicioReserva, fimReserva, intervalo.inicio, intervalo.fim));
+    if (conflito) {
+      return NextResponse.json({ erro: describeConflictType(conflito.tipo) }, { status: 409 });
+    }
+
+    const servicos = [servico];
+    const valorTabela = Number(servico.preco);
+    const cobranca = clienteIdFinal ? await decidirCobrancaItens(clienteIdFinal, servicos) : {
+      assinatura: null,
+      itens: [{
+        servico,
+        tipo_cobranca: "avulso" as const,
+        status_credito: "nao_aplicavel" as const,
+        assinatura_id: null,
+        creditos_plano: { corte: 0, barba: 0, sobrancelha: 0 },
+      }],
+      itensSemSaldo: [],
+    };
+
+    const tipoCobranca = cobranca.itens.every((item) => item.tipo_cobranca === "plano")
+      ? "plano"
+      : cobranca.itens.every((item) => item.tipo_cobranca === "avulso")
+        ? "avulso"
+        : "misto";
+
+    const valorFinal = calcularValorFinalDosItens(cobranca.itens);
+
+    const { data: inserted, error } = await supabase
+      .from("agendamentos")
+      .insert({
+        barbeiro_id: session.barbeiro_id,
+        cliente_id: clienteIdFinal,
+        auth_user_id: authUserIdFinal,
+        assinatura_id: cobranca.assinatura?.id ?? null,
+        data,
+        hora_inicio: horaInicio,
+        hora_fim: minutesToTime(fimReserva),
+        nome_cliente: nomeClienteFinal,
+        celular_cliente: celularClienteFinal,
+        servico_id: servico.id,
+        servico_nome: servico.nome,
+        servico_duracao_minutos: servico.duracao_minutos,
+        servico_preco: valorTabela,
+        valor_tabela: valorTabela,
+        desconto: 0,
+        acrescimo: 0,
+        valor_final: valorFinal,
+        status: "ativo",
+        status_agendamento: "confirmado",
+        status_atendimento: "pendente",
+        status_pagamento: "pendente",
+        origem_agendamento: "admin_manual",
+        tipo_cobranca: tipoCobranca,
+        cancelavel_ate: buildCancelavelAte(data, horaInicio),
+        observacoes,
+      })
+      .select("id, data, hora_inicio, hora_fim, nome_cliente, celular_cliente, servico_nome, valor_final, tipo_cobranca")
+      .single();
+
+    if (error) {
+      return NextResponse.json({ erro: error.message }, { status: 500 });
+    }
+
+    const itensPayload = cobranca.itens.map((item, index) => ({
+      agendamento_id: inserted.id,
+      assinatura_id: item.assinatura_id,
+      servico_id: item.servico.id,
+      servico_nome: item.servico.nome,
+      servico_categoria: item.servico.categoria,
+      servico_duracao_minutos: item.servico.duracao_minutos,
+      servico_preco: item.servico.preco,
+      tipo_cobranca: item.tipo_cobranca,
+      status_credito: item.status_credito,
+      creditos_corte: item.creditos_plano.corte,
+      creditos_barba: item.creditos_plano.barba,
+      creditos_sobrancelha: item.creditos_plano.sobrancelha,
+      ordem: index + 1,
+    }));
+
+    const { error: itemsError } = await supabase.from("agendamento_itens").insert(itensPayload);
+    if (itemsError) {
+      return NextResponse.json({ erro: itemsError.message }, { status: 500 });
+    }
+
+    if (clienteIdFinal) {
+      await reservarCreditosDoAgendamento(clienteIdFinal, inserted.id, cobranca.itens);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      agendamento: inserted,
+      aviso:
+        clienteIdFinal && cobranca.itensSemSaldo.length > 0
+          ? "Cliente com plano sem saldo suficiente. Horario lancado como servico avulso."
+          : null,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro interno ao criar agendamento manual.";
     return NextResponse.json({ erro: message }, { status: message === "Nao autorizado" ? 401 : 500 });
   }
 }

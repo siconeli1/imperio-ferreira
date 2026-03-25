@@ -1,4 +1,5 @@
-import type { Servico } from "@/lib/servicos";
+import type { Servico, ServicePlanCoverage } from "@/lib/servicos";
+import { getServicePlanCoverage, hasPlanCoverage } from "@/lib/servicos";
 import { buscarAssinaturaAtiva, categoriaPodeUsarPlano, liquidarCreditoPlano, reservarCreditoPlano } from "@/lib/assinaturas";
 import { supabase } from "@/lib/supabase";
 
@@ -7,7 +8,40 @@ export type AgendamentoItemPlanoDecision = {
   tipo_cobranca: "plano" | "avulso";
   status_credito: "reservado" | "nao_aplicavel";
   assinatura_id: string | null;
+  creditos_plano: ServicePlanCoverage;
 };
+
+function hasEnoughCoverage(
+  saldos: Record<"corte" | "barba" | "sobrancelha", number>,
+  coverage: ServicePlanCoverage
+) {
+  return (
+    saldos.corte >= coverage.corte &&
+    saldos.barba >= coverage.barba &&
+    saldos.sobrancelha >= coverage.sobrancelha
+  );
+}
+
+function applyCoverage(
+  saldos: Record<"corte" | "barba" | "sobrancelha", number>,
+  coverage: ServicePlanCoverage
+) {
+  saldos.corte -= coverage.corte;
+  saldos.barba -= coverage.barba;
+  saldos.sobrancelha -= coverage.sobrancelha;
+}
+
+function getCoverageEntries(coverage: ServicePlanCoverage) {
+  return ([
+    ["corte", coverage.corte],
+    ["barba", coverage.barba],
+    ["sobrancelha", coverage.sobrancelha],
+  ] as const).filter(([, quantidade]) => quantidade > 0);
+}
+
+export function calcularValorFinalDosItens(itens: AgendamentoItemPlanoDecision[]) {
+  return itens.reduce((acc, item) => acc + (item.tipo_cobranca === "avulso" ? Number(item.servico.preco ?? 0) : 0), 0);
+}
 
 export async function decidirCobrancaItens(clienteId: string, servicos: Servico[]) {
   const assinatura = await buscarAssinaturaAtiva(clienteId);
@@ -20,6 +54,7 @@ export async function decidirCobrancaItens(clienteId: string, servicos: Servico[
         tipo_cobranca: "avulso" as const,
         status_credito: "nao_aplicavel" as const,
         assinatura_id: null,
+        creditos_plano: { corte: 0, barba: 0, sobrancelha: 0 },
       })),
       itensSemSaldo: [],
     };
@@ -35,16 +70,18 @@ export async function decidirCobrancaItens(clienteId: string, servicos: Servico[
   const itens: AgendamentoItemPlanoDecision[] = [];
 
   for (const servico of servicos) {
-    if (categoriaPodeUsarPlano(servico.categoria) && saldos[servico.categoria] > 0) {
-      saldos[servico.categoria] -= 1;
+    const coverage = getServicePlanCoverage(servico);
+    if (hasPlanCoverage(servico) && hasEnoughCoverage(saldos, coverage)) {
+      applyCoverage(saldos, coverage);
       itens.push({
         servico,
         tipo_cobranca: "plano",
         status_credito: "reservado",
         assinatura_id: assinatura.id,
+        creditos_plano: coverage,
       });
     } else {
-      if (categoriaPodeUsarPlano(servico.categoria)) {
+      if (hasPlanCoverage(servico)) {
         itensSemSaldo.push(servico);
       }
       itens.push({
@@ -52,6 +89,7 @@ export async function decidirCobrancaItens(clienteId: string, servicos: Servico[
         tipo_cobranca: "avulso",
         status_credito: "nao_aplicavel",
         assinatura_id: null,
+        creditos_plano: { corte: 0, barba: 0, sobrancelha: 0 },
       });
     }
   }
@@ -61,14 +99,19 @@ export async function decidirCobrancaItens(clienteId: string, servicos: Servico[
 
 export async function reservarCreditosDoAgendamento(clienteId: string, agendamentoId: string, itens: AgendamentoItemPlanoDecision[]) {
   for (const item of itens) {
-    if (item.tipo_cobranca === "plano" && item.assinatura_id && categoriaPodeUsarPlano(item.servico.categoria)) {
-      await reservarCreditoPlano({
-        assinaturaId: item.assinatura_id,
-        clienteId,
-        categoria: item.servico.categoria,
-        agendamentoId,
-        observacao: `Reserva do servico ${item.servico.nome}`,
-      });
+    if (item.tipo_cobranca === "plano" && item.assinatura_id) {
+      for (const [categoria, quantidade] of getCoverageEntries(item.creditos_plano)) {
+        if (categoriaPodeUsarPlano(categoria)) {
+          await reservarCreditoPlano({
+            assinaturaId: item.assinatura_id,
+            clienteId,
+            categoria,
+            agendamentoId,
+            quantidade,
+            observacao: `Reserva do servico ${item.servico.nome}`,
+          });
+        }
+      }
     }
   }
 }
@@ -87,7 +130,7 @@ export async function liquidarCreditosDoAgendamento(agendamentoId: string, tipo:
 
   const { data: itens, error } = await supabase
     .from("agendamento_itens")
-    .select("id, assinatura_id, servico_categoria, status_credito")
+    .select("id, assinatura_id, status_credito, creditos_corte, creditos_barba, creditos_sobrancelha")
     .eq("agendamento_id", agendamentoId);
 
   if (error) {
@@ -95,14 +138,25 @@ export async function liquidarCreditosDoAgendamento(agendamentoId: string, tipo:
   }
 
   for (const item of itens ?? []) {
-    if (item.assinatura_id && item.status_credito === "reservado" && categoriaPodeUsarPlano(String(item.servico_categoria))) {
-      await liquidarCreditoPlano({
-        assinaturaId: item.assinatura_id,
-        clienteId: agendamento.cliente_id,
-        categoria: item.servico_categoria,
-        agendamentoId,
-        tipo,
-      });
+    const coverage: ServicePlanCoverage = {
+      corte: Number(item.creditos_corte ?? 0),
+      barba: Number(item.creditos_barba ?? 0),
+      sobrancelha: Number(item.creditos_sobrancelha ?? 0),
+    };
+
+    if (item.assinatura_id && item.status_credito === "reservado") {
+      for (const [categoria, quantidade] of getCoverageEntries(coverage)) {
+        if (categoriaPodeUsarPlano(categoria)) {
+          await liquidarCreditoPlano({
+            assinaturaId: item.assinatura_id,
+            clienteId: agendamento.cliente_id,
+            categoria,
+            agendamentoId,
+            tipo,
+            quantidade,
+          });
+        }
+      }
 
       await supabase
         .from("agendamento_itens")

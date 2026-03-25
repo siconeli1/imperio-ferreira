@@ -10,6 +10,10 @@ export function CustomerAccountBar() {
   const { sessionReady, accessToken, profile, signInWithGoogle, signOut } = useCustomerSession();
   const [loading, setLoading] = useState(false);
 
+  if (pathname?.startsWith("/admin")) {
+    return null;
+  }
+
   async function handleLogin() {
     setLoading(true);
     const { error } = await signInWithGoogle(pathname || "/");

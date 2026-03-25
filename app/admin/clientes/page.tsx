@@ -1,12 +1,18 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  AdminNotice,
+  AdminPageHeading,
+  AdminPanel,
+} from "@/app/admin/_components/AdminUi";
 
 type ClienteResumo = {
   id: string;
   nome: string;
   telefone: string;
+  email_google: string | null;
   ultima_visita: string | null;
   plano_ativo: string | null;
   plano_nome?: string | null;
@@ -23,7 +29,7 @@ export default function AdminClientesPage() {
   useEffect(() => {
     async function carregar() {
       setLoading(true);
-      const res = await fetch("/api/admin/clientes");
+      const res = await fetch("/api/admin/clientes", { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) {
         setErro(json.erro || "Erro ao carregar clientes.");
@@ -38,54 +44,70 @@ export default function AdminClientesPage() {
   }, []);
 
   const filtrados = useMemo(() => {
-    const term = busca.trim().toLowerCase();
-    if (!term) return clientes;
-    return clientes.filter((cliente) => cliente.nome.toLowerCase().includes(term) || cliente.telefone.includes(term));
+    const termo = busca.trim().toLowerCase();
+    if (!termo) return clientes;
+    return clientes.filter((cliente) => {
+      const nome = cliente.nome.toLowerCase();
+      const email = (cliente.email_google ?? "").toLowerCase();
+      return nome.includes(termo) || cliente.telefone.includes(termo) || email.includes(termo);
+    });
   }, [busca, clientes]);
 
   return (
-    <main className="min-h-screen bg-[var(--background)] text-white">
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <Link href="/admin" className="text-[var(--muted)] hover:text-white">Voltar ao admin</Link>
-            <h1 className="mt-4 text-4xl font-semibold">Clientes</h1>
-            <p className="mt-2 text-[var(--muted)]">Lista geral com ultima visita, plano ativo e atalho direto para WhatsApp.</p>
-          </div>
-          <input value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Buscar por nome ou telefone" className="w-full max-w-sm rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 sm:w-80" />
-        </div>
+    <>
+      <AdminPageHeading
+        eyebrow="Clientes"
+        title="Base geral de clientes"
+        description="Aqui ficam todos os clientes cadastrados pela barbearia, independentemente de qual barbeiro atendeu. Voce consulta nome, celular, e-mail Google, ultima visita e plano ativo."
+        actions={
+          <input
+            value={busca}
+            onChange={(event) => setBusca(event.target.value)}
+            placeholder="Buscar por nome, celular ou e-mail"
+            className="w-full min-w-[260px] rounded-full border border-white/10 bg-white/[0.06] px-4 py-3 text-sm"
+          />
+        }
+      />
 
-        {erro && <div className="mb-6 border border-red-700 bg-red-950/60 px-4 py-3 text-red-200">{erro}</div>}
-        {loading && <p className="text-[var(--muted)]">Carregando clientes...</p>}
+      {erro ? <div className="mb-6"><AdminNotice tone="danger">{erro}</AdminNotice></div> : null}
 
-        {!loading && (
-          <div className="grid gap-4">
+      <AdminPanel title="Lista de clientes" description="Abrindo um cliente, voce enxerga historico de reservas, financeiro, plano e observacoes internas.">
+        {loading ? <p className="text-[var(--muted)]">Carregando clientes...</p> : null}
+        {!loading && filtrados.length === 0 ? <p className="text-[var(--muted)]">Nenhum cliente encontrado.</p> : null}
+
+        {!loading && filtrados.length > 0 ? (
+          <div className="space-y-4">
             {filtrados.map((cliente) => (
-              <div key={cliente.id} className="grid gap-4 border border-white/10 bg-white/[0.03] p-5 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div key={cliente.id} className="grid gap-4 rounded-[24px] border border-white/10 bg-black/20 p-5 xl:grid-cols-[1.1fr_0.9fr_auto] xl:items-center">
                 <div>
                   <div className="flex flex-wrap items-center gap-3">
                     <h2 className="text-xl font-semibold">{cliente.nome}</h2>
-                    <span className="text-xs uppercase tracking-[0.2em] text-[var(--accent-strong)]">{cliente.plano_nome ?? "sem plano"}</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs uppercase tracking-[0.16em] text-[var(--accent-strong)]">
+                      {cliente.plano_nome ?? "Sem plano"}
+                    </span>
                   </div>
-                  <p className="mt-2 text-[var(--muted)]">Telefone: {cliente.telefone}</p>
-                  <p className="mt-1 text-[var(--muted)]">Ultima visita: {cliente.ultima_visita ?? "-"}</p>
-                  <p className="mt-1 text-[var(--muted)]">Vencimento: {cliente.vencimento ?? "-"}</p>
+                  <p className="mt-2 text-sm text-[var(--muted)]">Celular: {cliente.telefone}</p>
+                  <p className="mt-1 text-sm text-[var(--muted)]">Google: {cliente.email_google || "Nao encontrado"}</p>
                 </div>
+
+                <div className="text-sm text-[var(--muted)]">
+                  <p>Ultima visita: {cliente.ultima_visita ?? "-"}</p>
+                  <p className="mt-1">Vencimento do plano: {cliente.vencimento ?? "-"}</p>
+                </div>
+
                 <div className="flex flex-wrap gap-3">
-                  <a href={cliente.whatsapp_link} target="_blank" rel="noreferrer" className="border border-white/20 px-4 py-2 font-semibold hover:bg-white/10">
+                  <a href={cliente.whatsapp_link} target="_blank" rel="noreferrer" className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold hover:bg-white/10">
                     WhatsApp
                   </a>
-                  <Link href={`/admin/clientes/${cliente.id}`} className="bg-[var(--accent)] px-4 py-2 font-semibold text-black hover:bg-[var(--accent-strong)]">
+                  <Link href={`/admin/clientes/${cliente.id}`} className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-black hover:bg-[var(--accent-strong)]">
                     Ver perfil
                   </Link>
                 </div>
               </div>
             ))}
-            {filtrados.length === 0 && <p className="text-[var(--muted)]">Nenhum cliente encontrado.</p>}
           </div>
-        )}
-      </div>
-    </main>
+        ) : null}
+      </AdminPanel>
+    </>
   );
 }
-

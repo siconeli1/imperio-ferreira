@@ -6,8 +6,7 @@ import { getBusyIntervals, getAnyAvailableBarber, overlaps } from "@/lib/agenda-
 import { findBarbeiroById } from "@/lib/barbeiros";
 import { requireCustomerAuth, getCustomerProfileByAuthUserId } from "@/lib/customer-auth";
 import { encontrarServicosAtivosPorIds } from "@/lib/servicos";
-import { calcularValorFinal } from "@/lib/agendamento";
-import { decidirCobrancaItens, reservarCreditosDoAgendamento } from "@/lib/agendamento-planos";
+import { calcularValorFinalDosItens, decidirCobrancaItens, reservarCreditosDoAgendamento } from "@/lib/agendamento-planos";
 
 function buildCancelavelAte(data: string, horaInicio: string) {
   const [year, month, day] = data.split("-").map(Number);
@@ -94,7 +93,7 @@ export async function POST(req: Request) {
         ? "avulso"
         : "misto";
 
-    const valorFinal = calcularValorFinal({ valorTabela });
+    const valorFinal = calcularValorFinalDosItens(cobranca.itens);
     const servicoResumo = servicos.map((servico) => servico.nome).join(" + ");
 
     const { data: inserted, error } = await supabase
@@ -146,6 +145,9 @@ export async function POST(req: Request) {
       servico_preco: item.servico.preco,
       tipo_cobranca: item.tipo_cobranca,
       status_credito: item.status_credito,
+      creditos_corte: item.creditos_plano.corte,
+      creditos_barba: item.creditos_plano.barba,
+      creditos_sobrancelha: item.creditos_plano.sobrancelha,
       ordem: index + 1,
     }));
 

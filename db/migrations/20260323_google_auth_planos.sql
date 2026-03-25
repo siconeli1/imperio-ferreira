@@ -110,6 +110,9 @@ CREATE TABLE IF NOT EXISTS public.agendamento_itens (
   tipo_cobranca TEXT NOT NULL CHECK (tipo_cobranca IN ('plano', 'avulso')),
   status_credito TEXT NOT NULL DEFAULT 'nao_aplicavel'
     CHECK (status_credito IN ('reservado', 'consumido', 'devolvido', 'nao_aplicavel')),
+  creditos_corte INTEGER NOT NULL DEFAULT 0 CHECK (creditos_corte >= 0),
+  creditos_barba INTEGER NOT NULL DEFAULT 0 CHECK (creditos_barba >= 0),
+  creditos_sobrancelha INTEGER NOT NULL DEFAULT 0 CHECK (creditos_sobrancelha >= 0),
   ordem INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
 );
@@ -218,9 +221,10 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO public.planos (id, nome, descricao, preco, cortes_incluidos, barbas_incluidas, sobrancelhas_incluidas, ativo, ordem)
 VALUES
-  ('plano-essential', 'Plano Essential', '4 cortes no ciclo mensal', 120, 4, 0, 0, true, 1),
-  ('plano-barba', 'Plano Barba', '4 barbas no ciclo mensal', 100, 0, 4, 0, true, 2),
-  ('plano-completo', 'Plano Completo', '4 cortes, 4 barbas e 4 sobrancelhas por ciclo', 240, 4, 4, 4, true, 3)
+  ('bronze-corte', 'Plano Bronze Corte', '4 cortes no ciclo mensal', 100, 4, 0, 0, true, 1),
+  ('bronze-barba', 'Plano Bronze Barba', '4 barbas no ciclo mensal', 60, 0, 4, 0, true, 2),
+  ('prata', 'Plano Prata', '4 cortes e 4 sobrancelhas no ciclo mensal', 110, 4, 0, 4, true, 3),
+  ('ouro', 'Plano Ouro', '4 barbas, 4 cortes e 4 sobrancelhas por ciclo', 150, 4, 4, 4, true, 4)
 ON CONFLICT (id) DO UPDATE SET
   nome = EXCLUDED.nome,
   descricao = EXCLUDED.descricao,

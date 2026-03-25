@@ -11,6 +11,12 @@ export interface Servico {
   ativo: boolean;
 }
 
+export type ServicePlanCoverage = {
+  corte: number;
+  barba: number;
+  sobrancelha: number;
+};
+
 const SERVICOS_FALLBACK: Servico[] = [
   {
     id: "barba",
@@ -125,4 +131,37 @@ export async function encontrarServicosAtivosPorIds(serviceIds: string[]) {
 
   const servicos = await listarServicosAtivos();
   return servicos.filter((servico) => ids.includes(servico.id) || ids.includes(servico.codigo));
+}
+
+export function getServicePlanCoverage(servico: Pick<Servico, "id" | "codigo" | "categoria">): ServicePlanCoverage {
+  const key = String(servico.id || servico.codigo).trim().toLowerCase();
+
+  switch (key) {
+    case "corte-de-cabelo":
+      return { corte: 1, barba: 0, sobrancelha: 0 };
+    case "barba":
+      return { corte: 0, barba: 1, sobrancelha: 0 };
+    case "corte-cabelo-sobrancelha":
+      return { corte: 1, barba: 0, sobrancelha: 1 };
+    case "cabelo-barba":
+      return { corte: 1, barba: 1, sobrancelha: 0 };
+    case "combo-cabelo-barba-sobrancelha":
+      return { corte: 1, barba: 1, sobrancelha: 1 };
+    default:
+      if (servico.categoria === "corte") {
+        return { corte: 1, barba: 0, sobrancelha: 0 };
+      }
+      if (servico.categoria === "barba") {
+        return { corte: 0, barba: 1, sobrancelha: 0 };
+      }
+      if (servico.categoria === "sobrancelha") {
+        return { corte: 0, barba: 0, sobrancelha: 1 };
+      }
+      return { corte: 0, barba: 0, sobrancelha: 0 };
+  }
+}
+
+export function hasPlanCoverage(servico: Pick<Servico, "id" | "codigo" | "categoria">) {
+  const coverage = getServicePlanCoverage(servico);
+  return coverage.corte + coverage.barba + coverage.sobrancelha > 0;
 }

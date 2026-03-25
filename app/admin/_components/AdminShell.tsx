@@ -1,0 +1,158 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+
+type AdminShellProps = {
+  children: React.ReactNode;
+};
+
+type BarbeiroLogado = {
+  id: string;
+  nome: string;
+  login: string;
+};
+
+const MENU_ITEMS = [
+  { href: "/admin", label: "Agenda", match: "/admin" },
+  { href: "/admin/bloqueios", label: "Bloqueios", match: "/admin/bloqueios" },
+  { href: "/admin/marcar", label: "Marcar horarios", match: "/admin/marcar" },
+  { href: "/admin/clientes", label: "Clientes", match: "/admin/clientes" },
+  { href: "/admin/financeiro", label: "Financeiro", match: "/admin/financeiro" },
+  { href: "/admin/planos", label: "Planos", match: "/admin/planos" },
+] as const;
+
+function isItemActive(pathname: string, match: string) {
+  if (match === "/admin") {
+    return pathname === "/admin";
+  }
+
+  return pathname === match || pathname.startsWith(`${match}/`);
+}
+
+export function AdminShell({ children }: AdminShellProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [barbeiro, setBarbeiro] = useState<BarbeiroLogado | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saindo, setSaindo] = useState(false);
+
+  const activeItem = useMemo(
+    () => MENU_ITEMS.find((item) => isItemActive(pathname || "", item.match)) ?? MENU_ITEMS[0],
+    [pathname]
+  );
+
+  useEffect(() => {
+    if (!pathname || pathname === "/admin/login") {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function carregarBarbeiro() {
+      try {
+        const res = await fetch("/api/admin/me", { cache: "no-store" });
+        const json = await res.json();
+
+        if (!res.ok) {
+          router.replace(`/admin/login?next=${encodeURIComponent(pathname)}`);
+          return;
+        }
+
+        if (!cancelled) {
+          setBarbeiro(json.barbeiro ?? null);
+        }
+      } catch {
+        router.replace(`/admin/login?next=${encodeURIComponent(pathname)}`);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void carregarBarbeiro();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, router]);
+
+  async function sair() {
+    setSaindo(true);
+    try {
+      await fetch("/api/admin/logout", { method: "POST" });
+    } finally {
+      router.replace("/admin/login");
+    }
+  }
+
+  if (pathname === "/admin/login") {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className="min-h-screen bg-[var(--background)] text-white">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-[rgba(4,7,6,0.92)] backdrop-blur-xl">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-3">
+                <Link href="/admin" className="text-lg font-semibold uppercase tracking-[0.26em] text-white">
+                  Imperio Ferreira
+                </Link>
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs uppercase tracking-[0.18em] text-[var(--accent-strong)]">
+                  Menu do barbeiro
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
+                <span>{loading ? "Carregando sua area..." : `${barbeiro?.nome ?? "Barbeiro"} • @${barbeiro?.login ?? "-"}`}</span>
+                <span className="hidden h-1 w-1 rounded-full bg-white/30 sm:inline-block" />
+                <span className="hidden sm:inline">Tudo organizado por funcao, sem misturar com a jornada do cliente.</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-[var(--muted)]">
+                {activeItem.label}
+              </div>
+              <button
+                type="button"
+                onClick={sair}
+                disabled={saindo}
+                className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold hover:bg-white/10 disabled:opacity-60"
+              >
+                {saindo ? "Saindo..." : "Sair"}
+              </button>
+            </div>
+          </div>
+
+          <nav className="mt-4 overflow-x-auto pb-1">
+            <div className="flex min-w-max gap-2">
+              {MENU_ITEMS.map((item) => {
+                const active = isItemActive(pathname || "", item.match);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap ${
+                      active
+                        ? "bg-[var(--accent)] text-black"
+                        : "border border-white/10 bg-white/[0.04] text-[var(--muted)] hover:bg-white/[0.08] hover:text-white"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">{children}</main>
+    </div>
+  );
+}

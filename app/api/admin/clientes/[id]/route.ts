@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-auth";
+import { getCustomerEmailByAuthUserId } from "@/lib/admin-customers";
 import {
   atualizarObservacoesAssinatura,
   buscarAssinaturaAtiva,
@@ -38,6 +39,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ erro: "Cliente nao encontrado." }, { status: 404 });
     }
 
+    const emailGoogle = await getCustomerEmailByAuthUserId(clienteRes.data.auth_user_id);
     const assinatura = await buscarAssinaturaAtiva(clienteId);
     const plano = assinatura ? await buscarPlanoPorId(assinatura.plano_id) : null;
     const movimentacoes = await listarMovimentacoesCliente(clienteId);
@@ -52,6 +54,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       cliente: {
         ...clienteRes.data,
+        email_google: emailGoogle,
         whatsapp_link: getWhatsAppLink(clienteRes.data.telefone),
       },
       assinatura,

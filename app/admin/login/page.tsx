@@ -28,7 +28,8 @@ export default function AdminLoginPage() {
         return;
       }
 
-      router.push("/admin");
+      const nextPath = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
+      router.push(nextPath || "/admin");
     } catch {
       setErro("Erro de conexao");
     } finally {
@@ -43,7 +44,7 @@ export default function AdminLoginPage() {
           <p className="text-xs uppercase tracking-[0.3em] text-[var(--accent-strong)]">Imperio Ferreira</p>
           <h1 className="mt-5 text-5xl font-semibold leading-tight">Area administrativa por barbeiro.</h1>
           <p className="mt-6 max-w-xl text-lg leading-8 text-[var(--muted)]">
-            Cada profissional acessa apenas a propria rotina: agenda do dia, marcacoes manuais, bloqueios e horarios personalizados.
+            Cada profissional acessa apenas a propria rotina: agenda, bloqueios, marcacoes manuais, clientes, financeiro e planos.
           </p>
           <div className="mt-10 space-y-4 text-sm text-[var(--muted)]">
             <p>Logins iniciais da migration: `lucas`, `alexandre`, `ryan` e `peixoto`.</p>
