@@ -1,31 +1,42 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CustomerOnboardingCard } from "@/app/_components/CustomerOnboardingCard";
 import { useCustomerSession } from "@/lib/use-customer-session";
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<main className="flex min-h-screen items-center justify-center bg-[var(--background)] text-white">Carregando...</main>}>
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-[var(--background)] text-white">
+          Carregando...
+        </main>
+      }
+    >
       <LoginContent />
     </Suspense>
   );
 }
 
 function LoginContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { accessToken, profile, sessionReady, signInWithGoogle, signOut, refresh } = useCustomerSession();
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(false);
+  const [autoStartBlocked, setAutoStartBlocked] = useState(false);
+  const autoStartAttemptedRef = useRef(false);
 
   const nextPath = useMemo(() => searchParams.get("next") || "/minha-conta", [searchParams]);
+  const autoStart = useMemo(() => searchParams.get("autostart") === "1", [searchParams]);
 
   async function handleGoogleLogin() {
     setErro("");
     setLoading(true);
-    const { error } = await signInWithGoogle(`/login?next=${encodeURIComponent(nextPath)}`);
+    const suffix = autoStart ? "&autostart=1" : "";
+    const { error } = await signInWithGoogle(`/login?next=${encodeURIComponent(nextPath)}${suffix}`);
     if (error) {
       setErro(error.message);
       setLoading(false);
@@ -33,10 +44,34 @@ function LoginContent() {
   }
 
   async function handleLogout() {
+    setAutoStartBlocked(true);
     setLoading(true);
     await signOut();
     setLoading(false);
   }
+
+  useEffect(() => {
+    if (!sessionReady || autoStartBlocked) {
+      return;
+    }
+
+    if (autoStart && accessToken && profile) {
+      router.replace(nextPath);
+      return;
+    }
+
+    if (autoStart && !accessToken && !loading && !autoStartAttemptedRef.current) {
+      autoStartAttemptedRef.current = true;
+      queueMicrotask(() => {
+        const suffix = autoStart ? "&autostart=1" : "";
+        void signInWithGoogle(`/login?next=${encodeURIComponent(nextPath)}${suffix}`).then(({ error }) => {
+          if (error) {
+            setErro(error.message);
+          }
+        });
+      });
+    }
+  }, [accessToken, autoStart, autoStartBlocked, loading, nextPath, profile, router, sessionReady, signInWithGoogle]);
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-white">
@@ -58,12 +93,9 @@ function LoginContent() {
           <section className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
             <div className="border border-white/10 bg-white/[0.03] p-8">
               <h2 className="text-2xl font-semibold">Acesse sua conta</h2>
-              <p className="mt-4 text-[var(--muted)]">
-                Nao existe login por SMS ou WhatsApp. Seus agendamentos ficam vinculados a sua conta Google.
-              </p>
               <button
                 type="button"
-                onClick={handleGoogleLogin}
+                onClick={() => void handleGoogleLogin()}
                 disabled={loading}
                 className="mt-8 bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)] disabled:opacity-50"
               >
@@ -105,13 +137,13 @@ function LoginContent() {
           </div>
         )}
 
-        {sessionReady && profile && (
+        {sessionReady && profile && !autoStart && (
           <section className="border border-white/10 bg-white/[0.03] p-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-2xl font-semibold">Conta conectada</h2>
                 <p className="mt-2 text-[var(--muted)]">
-                  Agora voce pode navegar pelo site sem refazer login. Quando quiser, continue direto para a proxima etapa.
+                  Voce esta logado como <span className="font-medium text-white">{profile.nome}</span>.
                 </p>
               </div>
               <button
@@ -126,7 +158,7 @@ function LoginContent() {
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               <div className="border border-white/10 bg-black/20 p-5">
-                <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Nome</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Nome e sobrenome</p>
                 <p className="mt-2 font-semibold">{profile.nome}</p>
               </div>
               <div className="border border-white/10 bg-black/20 p-5">
@@ -135,15 +167,12 @@ function LoginContent() {
               </div>
             </div>
 
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-8">
               <Link
                 href={nextPath}
-                className="bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)]"
+                className="inline-flex bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)]"
               >
-                Continuar
-              </Link>
-              <Link href="/minha-conta" className="border border-white/20 px-6 py-3 font-semibold hover:bg-white/10">
-                Minha conta
+                {nextPath === "/minha-conta" ? "Minha conta" : "Continuar"}
               </Link>
             </div>
           </section>

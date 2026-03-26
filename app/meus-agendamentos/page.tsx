@@ -160,15 +160,12 @@ export default function MeusAgendamentosPage() {
 
         {sessionReady && accessToken && !profile && !loading && (
           <section className="border border-white/10 bg-white/[0.03] p-8 text-center">
-            <h2 className="text-2xl font-semibold">Conta ainda nao cadastrada</h2>
+            <h2 className="text-2xl font-semibold">Conta ainda não cadastrada</h2>
             <p className="mt-4 text-[var(--muted)]">
               Esta conta Google ainda nao foi finalizada no sistema. Se voce nunca reservou com ela, ainda nao existem agendamentos vinculados.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link href="/agendar" className="bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)]">
-                Fazer meu primeiro agendamento
-              </Link>
-              <Link href="/login?next=/meus-agendamentos" className="border border-white/20 px-6 py-3 font-semibold hover:bg-white/10">
+              <Link href="/login?next=/meus-agendamentos" className="bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)]">
                 Completar cadastro
               </Link>
               <button

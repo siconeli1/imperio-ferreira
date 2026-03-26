@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CustomerOnboardingCard } from "@/app/_components/CustomerOnboardingCard";
-import { formatarCelular, getTodayInputValue, isDateBeyondLimit, isDateInPast } from "@/lib/format";
+import { getTodayInputValue, isDateBeyondLimit, isDateInPast } from "@/lib/format";
 import { useCustomerSession } from "@/lib/use-customer-session";
 import type { Servico } from "@/lib/servicos";
 
@@ -64,11 +64,10 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
       : initialBarbeiros.find((barbeiro) => barbeiro.id === barbeiroId) ?? null;
 
   const dayNumber = data ? new Date(`${data}T00:00:00`).getDay() : -1;
-  const isSaturday = dayNumber === 6;
   const isSunday = dayNumber === 0;
   const pastDate = data ? isDateInPast(data) : false;
   const outOfRange = data ? isDateBeyondLimit(data, 30) : false;
-  const isClosedDay = isSaturday || isSunday;
+  const isClosedDay = isSunday;
 
   const currentStep = useMemo(() => {
     if (!servicoSelecionado) return 1;
@@ -176,7 +175,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
         if (json.requires_avulso_confirmation) {
           setItensSemSaldo(json.itens_sem_saldo ?? []);
           setConfirmarAvulso(true);
-          setErro("Seu plano nao cobre este serviço com saldo disponivel. Voce pode seguir como serviço avulso.");
+          setErro("Seu plano nao cobre este servico com saldo disponivel. Voce pode seguir como servico avulso.");
           return;
         }
 
@@ -199,7 +198,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
           tipo_cobranca: itemApi?.tipo_cobranca,
         },
         nome_cliente: profile.nome,
-        telefone: formatarCelular(profile.telefone),
+        telefone: profile.telefone,
       });
 
       setData("");
@@ -251,7 +250,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                   <p className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">Servico</p>
                   <p className="mt-2 text-xl font-semibold">{confirmacao.servico.nome}</p>
                   <p className="mt-2 text-sm text-[var(--muted)]">
-                    {confirmacao.servico.duracao_minutos} min • {formatarPreco(confirmacao.servico.preco)}
+                    {confirmacao.servico.duracao_minutos} min - {formatarPreco(confirmacao.servico.preco)}
                   </p>
                   <p className="mt-2 text-sm text-[var(--accent-strong)]">
                     {confirmacao.servico.tipo_cobranca === "plano" ? "Coberto pelo plano" : "Servico avulso"}
@@ -274,10 +273,16 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
               </div>
 
               <div className="mt-10 grid gap-3">
-                <Link href="/meus-agendamentos" className="inline-flex items-center justify-center bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)]">
+                <Link
+                  href="/meus-agendamentos"
+                  className="inline-flex items-center justify-center bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)]"
+                >
                   Ver meus agendamentos
                 </Link>
-                <Link href="/agendar" className="inline-flex items-center justify-center border border-white/20 px-6 py-3 font-semibold hover:bg-white/10">
+                <Link
+                  href="/agendar"
+                  className="inline-flex items-center justify-center border border-white/20 px-6 py-3 font-semibold hover:bg-white/10"
+                >
                   Fazer novo agendamento
                 </Link>
               </div>
@@ -311,7 +316,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
             <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Antes de agendar</p>
             <h2 className="mt-4 text-3xl font-semibold">Entre com sua conta Google</h2>
             <p className="mt-4 text-[var(--muted)]">
-              O login acontece primeiro para que sua reserva fique salva na sua conta desde o inicio, sem pedir autenticação no meio do processo.
+              O login acontece primeiro para que sua reserva fique salva na sua conta desde o inicio, sem pedir autenticacao no meio do processo.
             </p>
             <button
               type="button"
@@ -352,18 +357,16 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
             <div className="mb-8 flex flex-wrap items-center justify-center gap-4 text-sm">
               {["Servico", "Data", "Horario", "Confirmacao"].map((item, index) => (
                 <div key={item} className="flex items-center gap-3">
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold ${index + 1 <= currentStep ? "bg-[var(--accent)] text-black" : "bg-white/10 text-[var(--muted)]"}`}>
+                  <div
+                    className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold ${
+                      index + 1 <= currentStep ? "bg-[var(--accent)] text-black" : "bg-white/10 text-[var(--muted)]"
+                    }`}
+                  >
                     {index + 1}
                   </div>
                   <span className={index + 1 <= currentStep ? "text-white" : "text-[var(--muted)]"}>{item}</span>
                 </div>
               ))}
-            </div>
-
-            <div className="mb-8 border border-white/10 bg-white/[0.03] p-5">
-              <p className="text-sm text-[var(--muted)]">
-                Agendando como <span className="font-semibold text-white">{profile.nome}</span> • {formatarCelular(profile.telefone)}
-              </p>
             </div>
 
             <div className="grid gap-8 lg:grid-cols-[1.12fr_0.88fr]">
@@ -377,11 +380,15 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                           key={servico.id}
                           type="button"
                           onClick={() => setServicoId(servico.id)}
-                          className={`border p-4 text-left ${ativo ? "border-[var(--accent)] bg-[var(--accent)] text-black" : "border-white/10 bg-white/[0.03] hover:border-white/30"}`}
+                          className={`border p-4 text-left ${
+                            ativo
+                              ? "border-[var(--accent)] bg-[var(--accent)] text-black"
+                              : "border-white/10 bg-white/[0.03] hover:border-white/30"
+                          }`}
                         >
                           <p className="font-semibold">{servico.nome}</p>
                           <p className={`mt-2 text-sm ${ativo ? "text-black/70" : "text-[var(--muted)]"}`}>
-                            {servico.duracao_minutos} min • {formatarPreco(Number(servico.preco))}
+                            {servico.duracao_minutos} min - {formatarPreco(Number(servico.preco))}
                           </p>
                         </button>
                       );
@@ -398,7 +405,11 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                       min={getTodayInputValue()}
                       className="datetime-input rounded-xl border px-4 py-3"
                     />
-                    <select value={barbeiroId} onChange={(event) => setBarbeiroId(event.target.value)} className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white">
+                    <select
+                      value={barbeiroId}
+                      onChange={(event) => setBarbeiroId(event.target.value)}
+                      className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white"
+                    >
                       <option value="qualquer">Qualquer um disponivel</option>
                       {initialBarbeiros.map((barbeiro) => (
                         <option key={barbeiro.id} value={barbeiro.id}>
@@ -410,7 +421,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                   <p className="mt-4 text-sm text-[var(--muted)]">
                     {pastDate && "A data escolhida esta no passado."}
                     {outOfRange && " A data esta fora da janela de 30 dias."}
-                    {isClosedDay && " A barbearia nao atende aos sabados e domingos."}
+                    {isClosedDay && " A barbearia nao atende aos domingos."}
                     {!pastDate &&
                       !outOfRange &&
                       !isClosedDay &&
@@ -429,14 +440,22 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                         key={slot.hora_inicio}
                         type="button"
                         onClick={() => setHorarioSelecionado(slot.hora_inicio)}
-                        className={`border px-3 py-3 text-sm font-medium ${horarioSelecionado === slot.hora_inicio ? "border-[var(--accent)] bg-[var(--accent)] text-black" : "border-white/15 bg-white/[0.03] hover:border-white/35"}`}
+                        className={`border px-3 py-3 text-sm font-medium ${
+                          horarioSelecionado === slot.hora_inicio
+                            ? "border-[var(--accent)] bg-[var(--accent)] text-black"
+                            : "border-white/15 bg-white/[0.03] hover:border-white/35"
+                        }`}
                       >
                         {slot.hora_inicio}
                       </button>
                     ))}
                   </div>
                   {!showAllHorarios && todosHorarios.length > horarios.length && (
-                    <button type="button" onClick={() => setShowAllHorarios(true)} className="mt-4 border border-white/20 px-4 py-2 text-sm font-semibold hover:bg-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setShowAllHorarios(true)}
+                      className="mt-4 border border-white/20 px-4 py-2 text-sm font-semibold hover:bg-white/10"
+                    >
                       Ver mais horarios
                     </button>
                   )}
@@ -453,8 +472,14 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                 <div className="mt-6 space-y-4 text-sm">
                   <ResumoItem label="Cliente" value={profile.nome} />
                   <ResumoItem label="Servico" value={servicoSelecionado?.nome ?? "-"} />
-                  <ResumoItem label="Duracao" value={servicoSelecionado ? `${servicoSelecionado.duracao_minutos} min` : "-"} />
-                  <ResumoItem label="Valor" value={servicoSelecionado ? formatarPreco(Number(servicoSelecionado.preco)) : "-"} />
+                  <ResumoItem
+                    label="Duracao"
+                    value={servicoSelecionado ? `${servicoSelecionado.duracao_minutos} min` : "-"}
+                  />
+                  <ResumoItem
+                    label="Valor"
+                    value={servicoSelecionado ? formatarPreco(Number(servicoSelecionado.preco)) : "-"}
+                  />
                   <ResumoItem label="Barbeiro" value={barbeiroEscolhido?.nome ?? "Qualquer um disponivel"} />
                   <ResumoItem label="Data" value={data ? formatarDataResumo(data) : "-"} />
                   <ResumoItem label="Inicio" value={horarioSelecionado || "-"} />

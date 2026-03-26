@@ -74,14 +74,14 @@ export function CustomerOnboardingCard({
         <input
           value={nome}
           onChange={(event) => setNome(event.target.value)}
-          placeholder="Seu nome"
+          placeholder="Nome e sobrenome"
           className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3"
         />
         <input
           type="tel"
           value={telefone}
           onChange={(event) => setTelefone(formatarCelular(event.target.value))}
-          placeholder="(11) 99999-9999"
+          placeholder="(17) 99999-9999"
           maxLength={15}
           className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3"
         />
