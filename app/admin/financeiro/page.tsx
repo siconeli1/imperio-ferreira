@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { getTodayInputValue } from "@/lib/format";
@@ -45,6 +45,12 @@ type FinanceResponse = {
   }>;
 };
 
+type AdminMeResponse = {
+  barbeiro?: {
+    cargo?: "socio" | "barbeiro";
+  } | null;
+};
+
 export default function AdminFinanceiroPage() {
   const today = getTodayInputValue();
   const [data, setData] = useState(today);
@@ -53,6 +59,30 @@ export default function AdminFinanceiroPage() {
   const [snapshot, setSnapshot] = useState<FinanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
+  const [canViewGeral, setCanViewGeral] = useState(false);
+
+  useEffect(() => {
+    async function carregarPermissao() {
+      try {
+        const res = await fetch("/api/admin/me", { cache: "no-store" });
+        const json = (await res.json()) as AdminMeResponse;
+        if (!res.ok) {
+          return;
+        }
+
+        const socio = json.barbeiro?.cargo === "socio";
+        setCanViewGeral(socio);
+        if (!socio) {
+          setEscopo("meu");
+        }
+      } catch {
+        setCanViewGeral(false);
+        setEscopo("meu");
+      }
+    }
+
+    void carregarPermissao();
+  }, []);
 
   useEffect(() => {
     async function carregar() {
@@ -99,8 +129,8 @@ export default function AdminFinanceiroPage() {
     <>
       <AdminPageHeading
         eyebrow="Financeiro"
-        title="Renda do barbeiro e visao geral"
-        description="Acompanhe a renda gerada pelos atendimentos concluidos, a renda esperada dos horarios ainda pendentes e, na visao geral mensal, some tambem o valor recebido pelos planos."
+        title="Financeiro da agenda"
+        description="Acompanhe o que ja foi gerado pelos atendimentos concluidos e o que ainda esta previsto pelos horarios pendentes."
       />
 
       <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5 lg:flex-row lg:items-end lg:justify-between">
@@ -108,9 +138,11 @@ export default function AdminFinanceiroPage() {
           <AdminActionButton type="button" tone={escopo === "meu" ? "primary" : "secondary"} onClick={() => setEscopo("meu")}>
             Meu financeiro
           </AdminActionButton>
-          <AdminActionButton type="button" tone={escopo === "geral" ? "primary" : "secondary"} onClick={() => setEscopo("geral")}>
-            Visao geral
-          </AdminActionButton>
+          {canViewGeral ? (
+            <AdminActionButton type="button" tone={escopo === "geral" ? "primary" : "secondary"} onClick={() => setEscopo("geral")}>
+              Visao geral da barbearia
+            </AdminActionButton>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -150,7 +182,7 @@ export default function AdminFinanceiroPage() {
             <AdminMetric
               label="Receita esperada"
               value={receitaEsperada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-              note="Gerada + horarios ainda pendentes"
+              note="Gerada mais horarios ainda pendentes"
             />
             <AdminMetric label="Concluidos" value={String(resumo?.concluidos ?? 0)} />
             <AdminMetric label="Pendentes" value={String(resumo?.pendentes ?? 0)} />
@@ -166,14 +198,14 @@ export default function AdminFinanceiroPage() {
           ) : null}
 
           <div className="grid gap-6 xl:grid-cols-[1fr_0.95fr]">
-            <AdminPanel title="Resumo por barbeiro" description="Na visao geral, voce compara o desempenho dos profissionais. Na visao individual, fica facil entender seu proprio fechamento.">
+            <AdminPanel title="Resumo por barbeiro" description="Na visao geral, voce compara o desempenho dos profissionais. Na visao individual, voce enxerga apenas o proprio fechamento.">
               <div className="space-y-4">
                 {snapshot.por_barbeiro.map((item) => (
                   <div key={item.barbeiro_id} className="grid gap-3 rounded-[24px] border border-white/10 bg-black/20 p-4 lg:grid-cols-[1fr_auto_auto_auto] lg:items-center">
                     <div>
                       <p className="font-semibold">{item.barbeiro_nome}</p>
                       <p className="mt-1 text-sm text-[var(--muted)]">
-                        Concluidos: {item.concluidos} • Pendentes: {item.pendentes} • Faltas: {item.faltas}
+                        Concluidos: {item.concluidos} - Pendentes: {item.pendentes} - Faltas: {item.faltas}
                       </p>
                     </div>
                     <div className="text-sm text-[var(--muted)]">
@@ -196,7 +228,7 @@ export default function AdminFinanceiroPage() {
               </div>
             </AdminPanel>
 
-            <AdminPanel title="Agendamentos considerados" description="Lista resumida do que esta entrando nas contas do periodo filtrado.">
+            <AdminPanel title="Lancamentos considerados" description="Lista resumida do que esta entrando no calculo do periodo filtrado.">
               {snapshot.agendamentos.length === 0 ? <p className="text-[var(--muted)]">Nenhum agendamento nesse recorte.</p> : null}
 
               {snapshot.agendamentos.length > 0 ? (
@@ -211,7 +243,7 @@ export default function AdminFinanceiroPage() {
                       </div>
                       <p className="mt-2 text-sm text-[var(--muted)]">{item.nome_cliente}</p>
                       <p className="mt-1 text-sm text-[var(--muted)]">
-                        {item.data} • {item.status_atendimento === "concluido" ? "Concluido" : item.status_agendamento}
+                        {item.data} - {item.status_atendimento === "concluido" ? "Concluido" : item.status_agendamento}
                       </p>
                       <p className="mt-1 text-sm text-[var(--muted)]">
                         Cobranca: {item.tipo_cobranca === "plano" ? "de graca / plano" : item.tipo_cobranca}
@@ -227,3 +259,4 @@ export default function AdminFinanceiroPage() {
     </>
   );
 }
+

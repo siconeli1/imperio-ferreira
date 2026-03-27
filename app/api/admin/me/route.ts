@@ -13,6 +13,7 @@ export async function GET() {
       id: session.barbeiro_id,
       nome: session.barbeiro_nome,
       login: session.barbeiro_login,
+      cargo: session.barbeiro_cargo,
     },
   });
 }

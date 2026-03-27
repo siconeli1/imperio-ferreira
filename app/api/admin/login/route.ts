@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
     barbeiro_id: barbeiro.id,
     barbeiro_login: barbeiro.login,
     barbeiro_nome: barbeiro.nome,
+    barbeiro_cargo: barbeiro.cargo,
   });
 
   const response = NextResponse.json({
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
       nome: barbeiro.nome,
       login: barbeiro.login,
       slug: barbeiro.slug,
+      cargo: barbeiro.cargo,
     },
   });
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/admin-auth";
+import { isSocioAdmin, requireAdminSession } from "@/lib/admin-auth";
 import { getFinanceSnapshot, getTodaySaoPauloIso, type FinancePeriod, type FinanceScope } from "@/lib/admin-finance";
 
 export async function GET(request: Request) {
@@ -16,6 +16,10 @@ export async function GET(request: Request) {
 
     if (!["meu", "geral"].includes(scope)) {
       return NextResponse.json({ erro: "Escopo invalido." }, { status: 400 });
+    }
+
+    if (scope === "geral" && !isSocioAdmin(session)) {
+      return NextResponse.json({ erro: "Somente socios podem acessar a visao geral do financeiro." }, { status: 403 });
     }
 
     const snapshot = await getFinanceSnapshot({

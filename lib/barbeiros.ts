@@ -7,6 +7,7 @@ export interface Barbeiro {
   slug: string;
   login: string;
   senha_hash: string;
+  cargo: "socio" | "barbeiro";
   ativo: boolean;
   ordem: number;
   foto_url: string | null;
@@ -19,6 +20,7 @@ const BARBEIROS_FALLBACK: Barbeiro[] = [
     slug: "lucas-cantelle",
     login: "lucas",
     senha_hash: "c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d",
+    cargo: "socio",
     ativo: true,
     ordem: 1,
     foto_url: null,
@@ -29,6 +31,7 @@ const BARBEIROS_FALLBACK: Barbeiro[] = [
     slug: "alexandre-albertini",
     login: "alexandre",
     senha_hash: "c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d",
+    cargo: "barbeiro",
     ativo: true,
     ordem: 2,
     foto_url: null,
@@ -39,6 +42,7 @@ const BARBEIROS_FALLBACK: Barbeiro[] = [
     slug: "ryan-ferreira",
     login: "ryan",
     senha_hash: "c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d",
+    cargo: "socio",
     ativo: true,
     ordem: 3,
     foto_url: null,
@@ -49,6 +53,7 @@ const BARBEIROS_FALLBACK: Barbeiro[] = [
     slug: "peixoto",
     login: "peixoto",
     senha_hash: "c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d",
+    cargo: "barbeiro",
     ativo: true,
     ordem: 4,
     foto_url: null,
@@ -58,7 +63,7 @@ const BARBEIROS_FALLBACK: Barbeiro[] = [
 async function loadBarbeirosFromDatabase() {
   const { data, error } = await supabase
     .from("barbeiros")
-    .select("id, nome, slug, login, senha_hash, ativo, ordem, foto_url")
+    .select("id, nome, slug, login, senha_hash, cargo, ativo, ordem, foto_url")
     .order("ordem", { ascending: true })
     .order("nome", { ascending: true });
 

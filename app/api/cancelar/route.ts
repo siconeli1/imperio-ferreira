@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { normalizePhone } from "@/lib/phone";
 import { canCancelAppointment } from "@/lib/agendamento-rules";
 import { supabase } from "@/lib/supabase";
-import { getAdminSession } from "@/lib/admin-auth";
+import { getAdminSession, isSocioAdmin } from "@/lib/admin-auth";
 import { liquidarCreditosDoAgendamento } from "@/lib/agendamento-planos";
 import { getCustomerAuthFromRequest } from "@/lib/customer-auth";
 
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     }
 
     if (adminSession) {
-      if (agendamento.barbeiro_id !== adminSession.barbeiro_id) {
+      if (!isSocioAdmin(adminSession) && agendamento.barbeiro_id !== adminSession.barbeiro_id) {
         return NextResponse.json({ erro: "Nao autorizado a cancelar este agendamento" }, { status: 403 });
       }
     } else if (customerAuth) {

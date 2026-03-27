@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getTodayInputValue } from "@/lib/format";
@@ -7,6 +7,7 @@ import {
   AdminNotice,
   AdminPageHeading,
   AdminPanel,
+  AdminScopeNotice,
 } from "@/app/admin/_components/AdminUi";
 
 type Servico = {
@@ -32,11 +33,27 @@ type AgendaResumo = {
   servico_nome: string;
 };
 
+type AdminMeResponse = {
+  barbeiro: {
+    id: string;
+    nome: string;
+    cargo: "socio" | "barbeiro";
+  };
+};
+
+type BarbeiroOption = {
+  id: string;
+  nome: string;
+};
+
 export default function AdminMarcarPage() {
   const today = getTodayInputValue();
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [agendaData, setAgendaData] = useState<AgendaResumo[]>([]);
+  const [adminCargo, setAdminCargo] = useState<"socio" | "barbeiro" | "">("");
+  const [barbeiros, setBarbeiros] = useState<BarbeiroOption[]>([]);
+  const [barbeiroId, setBarbeiroId] = useState("");
   const [data, setData] = useState(today);
   const [horaInicio, setHoraInicio] = useState("09:00");
   const [servicoId, setServicoId] = useState("");
@@ -48,6 +65,7 @@ export default function AdminMarcarPage() {
   const [observacoes, setObservacoes] = useState("");
   const [erro, setErro] = useState("");
   const [msg, setMsg] = useState("");
+  const [contextLoading, setContextLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
@@ -56,17 +74,45 @@ export default function AdminMarcarPage() {
     setErro("");
 
     try {
-      const [servicosRes, clientesRes] = await Promise.all([
+      const [adminRes, servicosRes, clientesRes] = await Promise.all([
+        fetch("/api/admin/me", { cache: "no-store" }),
         fetch("/api/servicos", { cache: "no-store" }),
         fetch("/api/admin/clientes", { cache: "no-store" }),
       ]);
-      const [servicosJson, clientesJson] = await Promise.all([servicosRes.json(), clientesRes.json()]);
+      const [adminJson, servicosJson, clientesJson] = await Promise.all([
+        adminRes.json(),
+        servicosRes.json(),
+        clientesRes.json(),
+      ]);
+
+      if (!adminRes.ok) {
+        throw new Error(adminJson.erro || "Erro ao carregar sessao administrativa.");
+      }
 
       if (!servicosRes.ok) {
         throw new Error(servicosJson.erro || "Erro ao carregar servicos.");
       }
       if (!clientesRes.ok) {
         throw new Error(clientesJson.erro || "Erro ao carregar clientes.");
+      }
+
+      const admin = (adminJson as AdminMeResponse).barbeiro;
+      setAdminCargo(admin.cargo);
+
+      if (admin.cargo === "socio") {
+        const barbeirosRes = await fetch("/api/barbeiros", { cache: "no-store" });
+        const barbeirosJson = await barbeirosRes.json();
+
+        if (!barbeirosRes.ok) {
+          throw new Error(barbeirosJson.erro || "Erro ao carregar barbeiros.");
+        }
+
+        const options = (barbeirosJson.barbeiros ?? []) as BarbeiroOption[];
+        setBarbeiros(options);
+        setBarbeiroId((current) => current || admin.id);
+      } else {
+        setBarbeiros([{ id: admin.id, nome: admin.nome }]);
+        setBarbeiroId(admin.id);
       }
 
       const servicosAtivos = servicosJson.servicos ?? [];
@@ -82,13 +128,24 @@ export default function AdminMarcarPage() {
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro ao carregar dados.");
     } finally {
+      setContextLoading(false);
       setLoading(false);
     }
   }, [clienteId, servicoId]);
 
   const carregarAgendaDia = useCallback(async () => {
+    if (contextLoading) {
+      return;
+    }
+
+    if (!barbeiroId) {
+      setAgendaData([]);
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/admin-agenda?data=${encodeURIComponent(data)}`, { cache: "no-store" });
+      const search = new URLSearchParams({ data, barbeiro_id: barbeiroId });
+      const res = await fetch(`/api/admin-agenda?${search.toString()}`, { cache: "no-store" });
       const json = await res.json();
 
       if (!res.ok) {
@@ -99,7 +156,7 @@ export default function AdminMarcarPage() {
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro ao carregar agenda do dia.");
     }
-  }, [data]);
+  }, [barbeiroId, contextLoading, data]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -135,6 +192,10 @@ export default function AdminMarcarPage() {
     () => clientes.find((cliente) => cliente.id === clienteId) ?? null,
     [clienteId, clientes]
   );
+  const barbeiroSelecionado = useMemo(
+    () => barbeiros.find((barbeiro) => barbeiro.id === barbeiroId) ?? null,
+    [barbeiroId, barbeiros]
+  );
 
   async function marcarHorario(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -148,6 +209,7 @@ export default function AdminMarcarPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           data,
+          barbeiro_id: barbeiroId,
           hora_inicio: horaInicio,
           servico_id: servicoId,
           cliente_id: modoCliente === "existente" ? clienteId : null,
@@ -180,15 +242,23 @@ export default function AdminMarcarPage() {
     <>
       <AdminPageHeading
         eyebrow="Marcar horarios"
-        title="Marcacao manual do barbeiro"
-        description="Aqui voce pode marcar qualquer data e qualquer horario. O sistema so trava quando ja existe outro compromisso, reserva manual ou bloqueio no mesmo intervalo."
+        title="Marcar horario manualmente"
+        description="Escolha a data, o horario, o servico e o cliente. O sistema so impede a marcacao quando ja existe conflito real na sua agenda."
       />
 
       {erro ? <div className="mb-6"><AdminNotice tone="danger">{erro}</AdminNotice></div> : null}
       {msg ? <div className="mb-6"><AdminNotice tone="success">{msg}</AdminNotice></div> : null}
+      {adminCargo === "socio" && barbeiroSelecionado ? (
+        <div className="mb-6">
+          <AdminScopeNotice
+            title={`Novo horario para ${barbeiroSelecionado.nome}.`}
+            description="A marcacao manual e a consulta da agenda desta tela vao usar o barbeiro selecionado."
+          />
+        </div>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[1fr_0.95fr]">
-        <AdminPanel title="Novo horario" description="Escolha servico, data, inicio e o cliente. Se o cliente ainda nao estiver cadastrado, voce pode preencher manualmente.">
+        <AdminPanel title="Novo horario" description="Escolha o servico, defina a data e selecione um cliente cadastrado. Se precisar, voce tambem pode preencher o cliente manualmente.">
           {loading ? <p className="text-[var(--muted)]">Carregando base do formulario...</p> : null}
 
           {!loading ? (
@@ -198,10 +268,20 @@ export default function AdminMarcarPage() {
                 <input type="time" value={horaInicio} onChange={(event) => setHoraInicio(event.target.value)} className="datetime-input rounded-2xl border px-4 py-3" />
               </div>
 
+              {adminCargo === "socio" ? (
+                <select value={barbeiroId} onChange={(event) => setBarbeiroId(event.target.value)} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white">
+                  {barbeiros.map((barbeiro) => (
+                    <option key={barbeiro.id} value={barbeiro.id}>
+                      {barbeiro.nome}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+
               <select value={servicoId} onChange={(event) => setServicoId(event.target.value)} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white">
                 {servicos.map((servico) => (
                   <option key={servico.id} value={servico.id}>
-                    {servico.nome} • {servico.duracao_minutos} min • {Number(servico.preco).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    {servico.nome} - {servico.duracao_minutos} min - {Number(servico.preco).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                   </option>
                 ))}
               </select>
@@ -228,7 +308,7 @@ export default function AdminMarcarPage() {
                     {clientesFiltrados.length === 0 ? <option value="">Nenhum cliente encontrado</option> : null}
                     {clientesFiltrados.map((cliente) => (
                       <option key={cliente.id} value={cliente.id}>
-                        {cliente.nome} • {cliente.telefone}
+                        {cliente.nome} - {cliente.telefone}
                       </option>
                     ))}
                   </select>
@@ -270,7 +350,7 @@ export default function AdminMarcarPage() {
 
               <AdminActionButton
                 type="submit"
-                disabled={salvando || !servicoId || (modoCliente === "existente" ? !clienteId : !nomeCliente || !celularCliente)}
+                disabled={salvando || !barbeiroId || !servicoId || (modoCliente === "existente" ? !clienteId : !nomeCliente || !celularCliente)}
               >
                 {salvando ? "Salvando..." : "Marcar horario"}
               </AdminActionButton>
@@ -278,7 +358,7 @@ export default function AdminMarcarPage() {
           ) : null}
         </AdminPanel>
 
-        <AdminPanel title="Compromissos da data" description="Use esta coluna para bater o olho e evitar choque de horario antes de salvar.">
+        <AdminPanel title="Agenda da data" description="Confira os horarios ja ocupados antes de salvar para evitar encaixes conflitantes.">
           <div className="mb-5 max-w-xs">
             <label className="text-sm text-[var(--muted)]">Data consultada</label>
             <input
@@ -289,9 +369,11 @@ export default function AdminMarcarPage() {
             />
           </div>
 
-          {agendaData.length === 0 ? <p className="text-[var(--muted)]">Nenhum horario ativo nessa data.</p> : null}
+          {contextLoading ? <p className="text-[var(--muted)]">Carregando agenda...</p> : null}
 
-          {agendaData.length > 0 ? (
+          {!contextLoading && agendaData.length === 0 ? <p className="text-[var(--muted)]">Nenhum horario ativo nessa data.</p> : null}
+
+          {!contextLoading && agendaData.length > 0 ? (
             <div className="space-y-4">
               {agendaData.map((item) => (
                 <div key={item.id} className="rounded-[24px] border border-white/10 bg-black/20 p-4">
@@ -307,3 +389,4 @@ export default function AdminMarcarPage() {
     </>
   );
 }
+

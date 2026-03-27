@@ -1,5 +1,5 @@
 ﻿import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/admin-auth";
+import { isSocioAdmin, requireAdminSession } from "@/lib/admin-auth";
 import { getCustomerEmailByAuthUserId } from "@/lib/admin-customers";
 import {
   atualizarObservacoesAssinatura,
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    await requireAdminSession();
+    const session = await requireAdminSession();
     const clienteId = getIdFromRequest(request);
     const body = await request.json();
 
@@ -101,6 +101,14 @@ export async function PATCH(request: Request) {
     if (body?.nome) patch.nome = String(body.nome).trim();
     if (body?.telefone) patch.telefone = String(body.telefone).replace(/\D/g, "");
     if (body?.data_nascimento) patch.data_nascimento = String(body.data_nascimento);
+
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json({ erro: "Nenhuma alteracao valida foi enviada." }, { status: 400 });
+    }
+
+    if (Object.keys(patch).length > 0 && !isSocioAdmin(session)) {
+      return NextResponse.json({ erro: "Somente socios podem editar dados do cliente." }, { status: 403 });
+    }
 
     const { data, error } = await supabase
       .from("clientes")

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { calcularValorFinal, syncAutoClosedAgendamentos } from "@/lib/agendamento";
 import { canCancelAppointment, canConcludeAppointment, canMarkNoShow } from "@/lib/agendamento-rules";
-import { requireAdminSession } from "@/lib/admin-auth";
+import { requireAdminSession, resolveAdminBarbeiroScope } from "@/lib/admin-auth";
 import {
   calcularValorFinalDosItens,
   decidirCobrancaItens,
@@ -31,6 +31,19 @@ function describeConflictType(tipo: "agendamento" | "horario_customizado" | "blo
   return "Existe um bloqueio ativo nesse intervalo.";
 }
 
+function getRouteErrorStatus(message: string) {
+  if (message === "Nao autorizado") {
+    return 401;
+  }
+  if (message === "Sem permissao") {
+    return 403;
+  }
+  if (message === "Barbeiro nao encontrado.") {
+    return 404;
+  }
+  return 500;
+}
+
 export async function GET(req: Request) {
   try {
     const session = await requireAdminSession();
@@ -38,6 +51,7 @@ export async function GET(req: Request) {
     const data = searchParams.get("data");
     const dateFrom = searchParams.get("date_from");
     const dateTo = searchParams.get("date_to");
+    const targetBarbeiroId = await resolveAdminBarbeiroScope(session, searchParams.get("barbeiro_id"));
 
     if (!data && !dateFrom) {
       return NextResponse.json({ erro: "Data obrigatoria." }, { status: 400 });
@@ -46,14 +60,14 @@ export async function GET(req: Request) {
     let agendamentoQuery = supabase
       .from("agendamentos")
       .select("id, data, hora_inicio, hora_fim, nome_cliente, celular_cliente, servico_nome, servico_preco, status, status_agendamento, status_atendimento, status_pagamento, valor_tabela, desconto, acrescimo, valor_final, forma_pagamento, origem_agendamento, observacoes, concluido_em, cancelado_em, tipo_cobranca")
-      .eq("barbeiro_id", session.barbeiro_id)
+      .eq("barbeiro_id", targetBarbeiroId)
       .order("data", { ascending: true })
       .order("hora_inicio", { ascending: true });
 
     let customQuery = supabase
       .from("horarios_customizados")
       .select("id, data, hora_inicio, hora_fim, nome_cliente, celular_cliente")
-      .eq("barbeiro_id", session.barbeiro_id)
+      .eq("barbeiro_id", targetBarbeiroId)
       .order("data", { ascending: true })
       .order("hora_inicio", { ascending: true });
 
@@ -108,7 +122,7 @@ export async function GET(req: Request) {
     return NextResponse.json(todosAgendamentos);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro interno ao carregar agenda.";
-    return NextResponse.json({ erro: message }, { status: message === "Nao autorizado" ? 401 : 500 });
+    return NextResponse.json({ erro: message }, { status: getRouteErrorStatus(message) });
   }
 }
 
@@ -126,7 +140,6 @@ export async function PATCH(req: Request) {
       .from("agendamentos")
       .select("id, barbeiro_id, data, hora_inicio, hora_fim, cancelavel_ate, valor_tabela, desconto, acrescimo, status, status_agendamento, status_atendimento, status_pagamento, origem_agendamento")
       .eq("id", id)
-      .eq("barbeiro_id", session.barbeiro_id)
       .maybeSingle();
 
     if (loadError) {
@@ -136,6 +149,8 @@ export async function PATCH(req: Request) {
     if (!atual) {
       return NextResponse.json({ erro: "Agendamento nao encontrado." }, { status: 404 });
     }
+
+    const targetBarbeiroId = await resolveAdminBarbeiroScope(session, atual.barbeiro_id);
 
     if (status_agendamento === "cancelado" && !canCancelAppointment(atual)) {
       return NextResponse.json({ erro: "Este agendamento nao pode mais ser cancelado." }, { status: 409 });
@@ -182,7 +197,7 @@ export async function PATCH(req: Request) {
       .from("agendamentos")
       .update(patch)
       .eq("id", id)
-      .eq("barbeiro_id", session.barbeiro_id)
+      .eq("barbeiro_id", targetBarbeiroId)
       .select("id, status, status_agendamento, status_atendimento, status_pagamento, desconto, acrescimo, valor_final, forma_pagamento, observacoes, concluido_em, cancelado_em")
       .single();
 
@@ -206,7 +221,7 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: true, agendamento: atualizado });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro interno ao atualizar agendamento.";
-    return NextResponse.json({ erro: message }, { status: message === "Nao autorizado" ? 401 : 500 });
+    return NextResponse.json({ erro: message }, { status: getRouteErrorStatus(message) });
   }
 }
 
@@ -217,6 +232,7 @@ export async function POST(req: Request) {
     const data = String(body?.data ?? "").trim();
     const horaInicio = String(body?.hora_inicio ?? "").trim();
     const servicoId = String(body?.servico_id ?? "").trim();
+    const targetBarbeiroId = await resolveAdminBarbeiroScope(session, body?.barbeiro_id ? String(body.barbeiro_id) : null);
     const clienteId = body?.cliente_id ? String(body.cliente_id).trim() : "";
     const nomeManual = String(body?.nome_cliente ?? "").trim();
     const celularManual = normalizePhone(body?.celular_cliente) || "";
@@ -264,7 +280,7 @@ export async function POST(req: Request) {
     const inicioReserva = parseTimeToMinutes(horaInicio);
     const fimReserva = inicioReserva + Number(servico.duracao_minutos);
 
-    const busyState = await getBusyIntervals(data, session.barbeiro_id);
+    const busyState = await getBusyIntervals(data, targetBarbeiroId);
     if (busyState.bloqueioDiaInteiro) {
       return NextResponse.json({ erro: "Voce bloqueou o dia inteiro para esta data." }, { status: 409 });
     }
@@ -302,7 +318,7 @@ export async function POST(req: Request) {
     const { data: inserted, error } = await supabase
       .from("agendamentos")
       .insert({
-        barbeiro_id: session.barbeiro_id,
+        barbeiro_id: targetBarbeiroId,
         cliente_id: clienteIdFinal,
         auth_user_id: authUserIdFinal,
         assinatura_id: cobranca.assinatura?.id ?? null,
@@ -370,6 +386,6 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro interno ao criar agendamento manual.";
-    return NextResponse.json({ erro: message }, { status: message === "Nao autorizado" ? 401 : 500 });
+    return NextResponse.json({ erro: message }, { status: getRouteErrorStatus(message) });
   }
 }

@@ -1,13 +1,27 @@
 import { NextResponse } from "next/server";
 import { overlaps, parseTimeToMinutes } from "@/lib/agenda-conflicts";
 import { supabase } from "@/lib/supabase";
-import { requireAdminSession } from "@/lib/admin-auth";
+import { requireAdminSession, resolveAdminBarbeiroScope } from "@/lib/admin-auth";
+
+function getRouteErrorStatus(message: string) {
+  if (message === "Nao autorizado") {
+    return 401;
+  }
+  if (message === "Sem permissao") {
+    return 403;
+  }
+  if (message === "Barbeiro nao encontrado.") {
+    return 404;
+  }
+  return 500;
+}
 
 export async function GET(req: Request) {
   try {
     const session = await requireAdminSession();
     const { searchParams } = new URL(req.url);
     const data = searchParams.get("data");
+    const targetBarbeiroId = await resolveAdminBarbeiroScope(session, searchParams.get("barbeiro_id"));
 
     if (!data) {
       return NextResponse.json({ erro: "Data obrigatoria." }, { status: 400 });
@@ -16,7 +30,7 @@ export async function GET(req: Request) {
     const { data: bloqueios, error } = await supabase
       .from("bloqueios_agenda")
       .select("*")
-      .eq("barbeiro_id", session.barbeiro_id)
+      .eq("barbeiro_id", targetBarbeiroId)
       .eq("data", data)
       .order("hora_inicio", { ascending: true });
 
@@ -27,7 +41,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ bloqueios: bloqueios || [] });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro interno ao listar bloqueios.";
-    const status = message === "Nao autorizado" ? 401 : 500;
+    const status = getRouteErrorStatus(message);
     return NextResponse.json({ erro: message }, { status });
   }
 }
@@ -36,6 +50,7 @@ export async function POST(req: Request) {
   try {
     const session = await requireAdminSession();
     const body = await req.json();
+    const targetBarbeiroId = await resolveAdminBarbeiroScope(session, body?.barbeiro_id ? String(body.barbeiro_id) : null);
     const { data, hora_inicio, hora_fim, dia_inteiro, motivo, tipo_bloqueio } = body;
 
     if (!data) {
@@ -57,12 +72,12 @@ export async function POST(req: Request) {
         supabase
           .from("agendamentos")
           .select("id, nome_cliente, celular_cliente, hora_inicio, hora_fim, status, status_agendamento")
-          .eq("barbeiro_id", session.barbeiro_id)
+          .eq("barbeiro_id", targetBarbeiroId)
           .eq("data", data),
         supabase
           .from("horarios_customizados")
           .select("id, nome_cliente, celular_cliente, hora_inicio, hora_fim")
-          .eq("barbeiro_id", session.barbeiro_id)
+          .eq("barbeiro_id", targetBarbeiroId)
           .eq("data", data),
       ]);
 
@@ -148,7 +163,7 @@ export async function POST(req: Request) {
       .from("bloqueios_agenda")
       .insert([
         {
-          barbeiro_id: session.barbeiro_id,
+          barbeiro_id: targetBarbeiroId,
           data,
           hora_inicio: dia_inteiro ? null : hora_inicio || null,
           hora_fim: dia_inteiro ? null : hora_fim || null,
@@ -167,7 +182,7 @@ export async function POST(req: Request) {
     return NextResponse.json(bloqueio);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro interno ao criar bloqueio.";
-    const status = message === "Nao autorizado" ? 401 : 500;
+    const status = getRouteErrorStatus(message);
     return NextResponse.json({ erro: message }, { status });
   }
 }
@@ -182,11 +197,27 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ erro: "ID do bloqueio obrigatorio." }, { status: 400 });
     }
 
+    const { data: bloqueioAtual, error: loadError } = await supabase
+      .from("bloqueios_agenda")
+      .select("id, barbeiro_id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (loadError) {
+      return NextResponse.json({ erro: loadError.message }, { status: 500 });
+    }
+
+    if (!bloqueioAtual) {
+      return NextResponse.json({ erro: "Bloqueio nao encontrado." }, { status: 404 });
+    }
+
+    const targetBarbeiroId = await resolveAdminBarbeiroScope(session, bloqueioAtual.barbeiro_id);
+
     const { error } = await supabase
       .from("bloqueios_agenda")
       .delete()
       .eq("id", id)
-      .eq("barbeiro_id", session.barbeiro_id);
+      .eq("barbeiro_id", targetBarbeiroId);
 
     if (error) {
       return NextResponse.json({ erro: error.message }, { status: 500 });
@@ -195,7 +226,7 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro interno ao deletar bloqueio.";
-    const status = message === "Nao autorizado" ? 401 : 500;
+    const status = getRouteErrorStatus(message);
     return NextResponse.json({ erro: message }, { status });
   }
 }

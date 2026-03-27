@@ -57,8 +57,8 @@ export default function AdminClientesPage() {
     <>
       <AdminPageHeading
         eyebrow="Clientes"
-        title="Base geral de clientes"
-        description="Aqui ficam todos os clientes cadastrados pela barbearia, independentemente de qual barbeiro atendeu. Voce consulta nome, celular, e-mail Google, ultima visita e plano ativo."
+        title="Clientes cadastrados"
+        description="Consulte nome, celular, e-mail Google, ultima visita e plano ativo em uma lista simples e objetiva."
         actions={
           <input
             value={busca}
@@ -71,7 +71,7 @@ export default function AdminClientesPage() {
 
       {erro ? <div className="mb-6"><AdminNotice tone="danger">{erro}</AdminNotice></div> : null}
 
-      <AdminPanel title="Lista de clientes" description="Abrindo um cliente, voce enxerga historico de reservas, financeiro, plano e observacoes internas.">
+      <AdminPanel title="Lista de clientes" description="Ao abrir um cliente, voce acessa o historico de reservas, financeiro, plano e observacoes internas.">
         {loading ? <p className="text-[var(--muted)]">Carregando clientes...</p> : null}
         {!loading && filtrados.length === 0 ? <p className="text-[var(--muted)]">Nenhum cliente encontrado.</p> : null}
 

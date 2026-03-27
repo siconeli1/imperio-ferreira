@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.barbeiros (
   slug TEXT NOT NULL UNIQUE,
   login TEXT NOT NULL UNIQUE,
   senha_hash TEXT NOT NULL,
+  cargo TEXT NOT NULL DEFAULT 'barbeiro' CHECK (cargo IN ('socio', 'barbeiro')),
   ativo BOOLEAN NOT NULL DEFAULT true,
   ordem INTEGER NOT NULL DEFAULT 0,
   foto_url TEXT,
@@ -120,17 +121,18 @@ ALTER TABLE public.horarios_customizados
     tsrange((data + hora_inicio)::timestamp, (data + hora_fim)::timestamp, '[)') WITH &&
   );
 
-INSERT INTO public.barbeiros (id, nome, slug, login, senha_hash, ativo, ordem, foto_url)
+INSERT INTO public.barbeiros (id, nome, slug, login, senha_hash, cargo, ativo, ordem, foto_url)
 VALUES
-  ('lucas-cantelle', 'Lucas Cantelle', 'lucas-cantelle', 'lucas', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', true, 1, null),
-  ('alexandre-albertini', 'Alexandre Albertini', 'alexandre-albertini', 'alexandre', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', true, 2, null),
-  ('ryan-ferreira', 'Ryan Ferreira', 'ryan-ferreira', 'ryan', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', true, 3, null),
-  ('peixoto', 'Peixoto', 'peixoto', 'peixoto', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', true, 4, null)
+  ('lucas-cantelle', 'Lucas Cantelle', 'lucas-cantelle', 'lucas', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', 'socio', true, 1, null),
+  ('alexandre-albertini', 'Alexandre Albertini', 'alexandre-albertini', 'alexandre', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', 'barbeiro', true, 2, null),
+  ('ryan-ferreira', 'Ryan Ferreira', 'ryan-ferreira', 'ryan', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', 'socio', true, 3, null),
+  ('peixoto', 'Peixoto', 'peixoto', 'peixoto', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', 'barbeiro', true, 4, null)
 ON CONFLICT (id) DO UPDATE SET
   nome = EXCLUDED.nome,
   slug = EXCLUDED.slug,
   login = EXCLUDED.login,
   senha_hash = EXCLUDED.senha_hash,
+  cargo = EXCLUDED.cargo,
   ativo = EXCLUDED.ativo,
   ordem = EXCLUDED.ordem,
   foto_url = EXCLUDED.foto_url,

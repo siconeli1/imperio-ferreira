@@ -12,6 +12,7 @@ type BarbeiroLogado = {
   id: string;
   nome: string;
   login: string;
+  cargo: "socio" | "barbeiro";
 };
 
 const MENU_ITEMS = [
@@ -104,13 +105,17 @@ export function AdminShell({ children }: AdminShellProps) {
                   Imperio Ferreira
                 </Link>
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs uppercase tracking-[0.18em] text-[var(--accent-strong)]">
-                  Menu do barbeiro
+                  Painel administrativo
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
-                <span>{loading ? "Carregando sua area..." : `${barbeiro?.nome ?? "Barbeiro"} • @${barbeiro?.login ?? "-"}`}</span>
-                <span className="hidden h-1 w-1 rounded-full bg-white/30 sm:inline-block" />
-                <span className="hidden sm:inline">Tudo organizado por funcao, sem misturar com a jornada do cliente.</span>
+                <span>{loading ? "Carregando painel..." : `${barbeiro?.nome ?? "Barbeiro"} - @${barbeiro?.login ?? "-"}`}</span>
+                {!loading && barbeiro ? (
+                  <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs uppercase tracking-[0.16em] text-[var(--accent-strong)]">
+                    {barbeiro.cargo === "socio" ? "Socio" : "Barbeiro"}
+                  </span>
+                ) : null}
+                <span className="hidden sm:inline">Agenda, bloqueios, clientes, financeiro e planos em um unico menu.</span>
               </div>
             </div>
 

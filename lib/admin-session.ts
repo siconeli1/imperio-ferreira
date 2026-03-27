@@ -5,6 +5,7 @@ export type AdminSessionPayload = {
   barbeiro_id: string;
   barbeiro_nome: string;
   barbeiro_login: string;
+  barbeiro_cargo: "socio" | "barbeiro";
   exp: number;
 };
 
@@ -84,6 +85,10 @@ export async function verifyAdminSessionCookie(cookieValue?: string | null) {
 
     if (!payload.barbeiro_id || !payload.barbeiro_login || !payload.barbeiro_nome) {
       return null;
+    }
+
+    if (payload.barbeiro_cargo !== "socio" && payload.barbeiro_cargo !== "barbeiro") {
+      payload.barbeiro_cargo = "barbeiro";
     }
 
     return payload;

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -163,6 +163,10 @@ export default function AdminPlanosPage() {
   }
 
   async function cancelarPlano(clienteIdParam: string, assinaturaId: string) {
+    if (!window.confirm("Remover este plano agora? O cliente perdera a assinatura ativa imediatamente.")) {
+      return;
+    }
+
     setErro("");
     setMsg("");
 
@@ -187,7 +191,7 @@ export default function AdminPlanosPage() {
       <AdminPageHeading
         eyebrow="Planos"
         title="Gestao de assinaturas"
-        description="Veja quem esta com plano ativo, acompanhe vencimentos e adicione novos assinantes sem depender de telas espalhadas."
+        description="Acompanhe os assinantes ativos, veja vencimentos e adicione novos planos sem sair desta area."
       />
 
       {erro ? <div className="mb-6"><AdminNotice tone="danger">{erro}</AdminNotice></div> : null}
@@ -217,7 +221,7 @@ export default function AdminPlanosPage() {
                 {clientesFiltrados.length === 0 ? <option value="">Nenhum cliente sem plano encontrado</option> : null}
                 {clientesFiltrados.map((cliente) => (
                   <option key={cliente.id} value={cliente.id}>
-                    {cliente.nome} • {cliente.telefone}
+                    {cliente.nome} - {cliente.telefone}
                   </option>
                 ))}
               </select>
@@ -312,3 +316,4 @@ export default function AdminPlanosPage() {
     </>
   );
 }
+

@@ -78,6 +78,21 @@ export function AdminNotice({
   return <div className={`rounded-2xl border px-4 py-3 text-sm ${palette}`}>{children}</div>;
 }
 
+export function AdminScopeNotice({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-4 py-3 text-sm text-[var(--foreground)]">
+      <p className="font-semibold text-[var(--accent-strong)]">{title}</p>
+      <p className="mt-1 text-[var(--muted)]">{description}</p>
+    </div>
+  );
+}
+
 export function AdminActionButton({
   children,
   tone = "primary",

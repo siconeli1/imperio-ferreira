@@ -108,18 +108,31 @@ export async function POST(request: Request) {
     const body = await request.json();
     const acao = String(body?.acao ?? "");
 
+    if (!acao) {
+      return NextResponse.json({ erro: "Acao obrigatoria." }, { status: 400 });
+    }
+
     if (acao === "adicionar_plano") {
+      const clienteId = String(body?.cliente_id ?? "").trim();
+      const planoId = String(body?.plano_id ?? "").trim();
+      const inicioCiclo = String(body?.inicio_ciclo ?? "").trim();
+      const fimCiclo = String(body?.fim_ciclo ?? "").trim();
+
+      if (!clienteId || !planoId || !inicioCiclo || !fimCiclo) {
+        return NextResponse.json({ erro: "cliente_id, plano_id, inicio_ciclo e fim_ciclo sao obrigatorios." }, { status: 400 });
+      }
+
       const plano = await buscarPlanoPorId(String(body.plano_id));
       if (!plano) {
         return NextResponse.json({ erro: "Plano nao encontrado." }, { status: 404 });
       }
 
       const assinatura = await criarAssinatura({
-        clienteId: String(body.cliente_id),
+        clienteId,
         plano,
         tipoRenovacao: body.tipo_renovacao === "automatica" ? "automatica" : "manual",
-        inicioCiclo: String(body.inicio_ciclo),
-        fimCiclo: String(body.fim_ciclo),
+        inicioCiclo,
+        fimCiclo,
         observacoes: body.observacoes ? String(body.observacoes) : undefined,
       });
 
@@ -136,12 +149,21 @@ export async function POST(request: Request) {
     }
 
     if (acao === "renovar_plano") {
+      const assinaturaId = String(body?.assinatura_id ?? "").trim();
+      const planoId = String(body?.plano_id ?? "").trim();
+      const inicioCiclo = String(body?.inicio_ciclo ?? "").trim();
+      const fimCiclo = String(body?.fim_ciclo ?? "").trim();
+
+      if (!assinaturaId || !planoId || !inicioCiclo || !fimCiclo) {
+        return NextResponse.json({ erro: "assinatura_id, plano_id, inicio_ciclo e fim_ciclo sao obrigatorios." }, { status: 400 });
+      }
+
       const plano = await buscarPlanoPorId(String(body.plano_id));
       if (!plano) {
         return NextResponse.json({ erro: "Plano nao encontrado." }, { status: 404 });
       }
 
-      const assinatura = await renovarAssinatura(String(body.assinatura_id), plano, String(body.inicio_ciclo), String(body.fim_ciclo));
+      const assinatura = await renovarAssinatura(assinaturaId, plano, inicioCiclo, fimCiclo);
 
       await supabase.from("financeiro_lancamentos").insert({
         cliente_id: assinatura.cliente_id,
@@ -156,17 +178,40 @@ export async function POST(request: Request) {
     }
 
     if (acao === "troca_imediata") {
+      const assinaturaId = String(body?.assinatura_id ?? "").trim();
+      const planoId = String(body?.plano_id ?? "").trim();
+
+      if (!assinaturaId || !planoId) {
+        return NextResponse.json({ erro: "assinatura_id e plano_id sao obrigatorios." }, { status: 400 });
+      }
+
       const plano = await buscarPlanoPorId(String(body.plano_id));
       if (!plano) {
         return NextResponse.json({ erro: "Plano nao encontrado." }, { status: 404 });
       }
 
-      const assinatura = await aplicarTrocaImediata(String(body.assinatura_id), plano);
+      const assinatura = await aplicarTrocaImediata(assinaturaId, plano);
       return NextResponse.json({ assinatura });
     }
 
     if (acao === "registrar_uso_manual") {
-      const assinatura = await buscarAssinaturaAtiva(String(body.cliente_id));
+      const clienteId = String(body?.cliente_id ?? "").trim();
+      const categoria = String(body?.categoria ?? "").trim();
+      const quantidade = Number(body?.quantidade ?? 1);
+
+      if (!clienteId) {
+        return NextResponse.json({ erro: "cliente_id obrigatorio." }, { status: 400 });
+      }
+
+      if (!["corte", "barba", "sobrancelha"].includes(categoria)) {
+        return NextResponse.json({ erro: "Categoria invalida para uso manual." }, { status: 400 });
+      }
+
+      if (!Number.isFinite(quantidade) || quantidade <= 0) {
+        return NextResponse.json({ erro: "Quantidade invalida para uso manual." }, { status: 400 });
+      }
+
+      const assinatura = await buscarAssinaturaAtiva(clienteId);
       if (!assinatura) {
         return NextResponse.json({ erro: "Cliente sem assinatura ativa." }, { status: 409 });
       }
@@ -174,8 +219,8 @@ export async function POST(request: Request) {
       await registrarUsoManualPlano({
         assinaturaId: assinatura.id,
         clienteId: assinatura.cliente_id,
-        categoria: body.categoria,
-        quantidade: Number(body.quantidade ?? 1),
+        categoria: categoria as "corte" | "barba" | "sobrancelha",
+        quantidade,
         observacao: body.observacao ? String(body.observacao) : "Uso manual registrado pelo admin",
       });
 

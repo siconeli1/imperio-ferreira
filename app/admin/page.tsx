@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import {
   AdminNotice,
   AdminPageHeading,
   AdminPanel,
+  AdminScopeNotice,
 } from "@/app/admin/_components/AdminUi";
 
 type AgendaItem = {
@@ -27,20 +28,85 @@ type AgendaItem = {
   origem?: "agendamento" | "horario_customizado";
 };
 
+type AdminMeResponse = {
+  barbeiro: {
+    id: string;
+    nome: string;
+    cargo: "socio" | "barbeiro";
+  };
+};
+
+type BarbeiroOption = {
+  id: string;
+  nome: string;
+};
+
 export default function AdminAgendaPage() {
   const today = getTodayInputValue();
   const [data, setData] = useState(today);
   const [agenda, setAgenda] = useState<AgendaItem[]>([]);
+  const [adminCargo, setAdminCargo] = useState<"socio" | "barbeiro" | "">("");
+  const [barbeiros, setBarbeiros] = useState<BarbeiroOption[]>([]);
+  const [barbeiroId, setBarbeiroId] = useState("");
+  const [contextLoading, setContextLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [msg, setMsg] = useState("");
 
+  const carregarContexto = useCallback(async () => {
+    setContextLoading(true);
+    setErro("");
+
+    try {
+      const adminRes = await fetch("/api/admin/me", { cache: "no-store" });
+      const adminJson = (await adminRes.json()) as AdminMeResponse & { erro?: string };
+
+      if (!adminRes.ok) {
+        throw new Error(adminJson.erro || "Erro ao carregar sessao administrativa.");
+      }
+
+      const admin = adminJson.barbeiro;
+      setAdminCargo(admin.cargo);
+
+      if (admin.cargo === "socio") {
+        const barbeirosRes = await fetch("/api/barbeiros", { cache: "no-store" });
+        const barbeirosJson = (await barbeirosRes.json()) as { barbeiros?: BarbeiroOption[]; erro?: string };
+
+        if (!barbeirosRes.ok) {
+          throw new Error(barbeirosJson.erro || "Erro ao carregar barbeiros.");
+        }
+
+        const options = barbeirosJson.barbeiros ?? [];
+        setBarbeiros(options);
+        setBarbeiroId((current) => current || admin.id);
+      } else {
+        setBarbeiros([{ id: admin.id, nome: admin.nome }]);
+        setBarbeiroId(admin.id);
+      }
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Erro ao preparar a agenda.");
+    } finally {
+      setContextLoading(false);
+    }
+  }, []);
+
   const carregarAgenda = useCallback(async () => {
+    if (contextLoading) {
+      return;
+    }
+
+    if (!barbeiroId) {
+      setAgenda([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setErro("");
 
     try {
-      const res = await fetch(`/api/admin-agenda?data=${encodeURIComponent(data)}`, { cache: "no-store" });
+      const search = new URLSearchParams({ data, barbeiro_id: barbeiroId });
+      const res = await fetch(`/api/admin-agenda?${search.toString()}`, { cache: "no-store" });
       const json = await res.json();
 
       if (!res.ok) {
@@ -53,7 +119,15 @@ export default function AdminAgendaPage() {
     } finally {
       setLoading(false);
     }
-  }, [data]);
+  }, [barbeiroId, contextLoading, data]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void carregarContexto();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [carregarContexto]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -81,6 +155,11 @@ export default function AdminAgendaPage() {
     };
   }, [agenda]);
 
+  const barbeiroSelecionado = useMemo(
+    () => barbeiros.find((item) => item.id === barbeiroId) ?? null,
+    [barbeiroId, barbeiros]
+  );
+
   async function atualizarAgendamento(id: string, payload: Record<string, string>) {
     setErro("");
     setMsg("");
@@ -102,6 +181,10 @@ export default function AdminAgendaPage() {
   }
 
   async function cancelarAgendamento(id: string) {
+    if (!window.confirm("Cancelar este agendamento agora? Essa acao afeta a agenda e pode devolver credito de plano.")) {
+      return;
+    }
+
     setErro("");
     setMsg("");
 
@@ -125,15 +208,15 @@ export default function AdminAgendaPage() {
     <>
       <AdminPageHeading
         eyebrow="Agenda"
-        title="Cronograma do barbeiro"
-        description="Visualize seu dia de trabalho com clareza. Por padrao, a tela abre em hoje, mas voce pode trocar a data quando quiser."
+        title="Agenda do dia"
+        description="Veja seus atendimentos da data selecionada, acompanhe o status de cada horario e tome acoes rapidas sem sair da tela."
         actions={
           <>
             <Link href="/admin/marcar" className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold hover:bg-white/10">
               Marcar horario
             </Link>
             <Link href="/admin/bloqueios" className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold hover:bg-white/10">
-              Bloquear horario
+              Bloqueios
             </Link>
           </>
         }
@@ -145,32 +228,56 @@ export default function AdminAgendaPage() {
           <AdminMetric label="Pendentes" value={String(resumo.pendentes)} />
           <AdminMetric label="Concluidos" value={String(resumo.concluidos)} />
           <AdminMetric
-            label="Receita do dia"
+            label="Receita prevista"
             value={resumo.receitaEsperada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
             note={`Gerada: ${resumo.receitaGerada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}
           />
         </div>
 
-        <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+        <div className="grid gap-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5 sm:grid-cols-2">
           <label className="text-sm text-[var(--muted)]">Dia da agenda</label>
           <input
             type="date"
             value={data}
             onChange={(event) => setData(event.target.value)}
-            className="datetime-input mt-3 w-full rounded-2xl border px-4 py-3"
+            className="datetime-input w-full rounded-2xl border px-4 py-3"
           />
+          {adminCargo === "socio" ? (
+            <>
+              <label className="text-sm text-[var(--muted)] sm:col-start-2 sm:row-start-1">Barbeiro</label>
+              <select
+                value={barbeiroId}
+                onChange={(event) => setBarbeiroId(event.target.value)}
+                className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white sm:col-start-2"
+              >
+                {barbeiros.map((barbeiro) => (
+                  <option key={barbeiro.id} value={barbeiro.id}>
+                    {barbeiro.nome}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : null}
         </div>
       </div>
 
       {erro ? <div className="mb-6"><AdminNotice tone="danger">{erro}</AdminNotice></div> : null}
       {msg ? <div className="mb-6"><AdminNotice tone="success">{msg}</AdminNotice></div> : null}
+      {adminCargo === "socio" && barbeiroSelecionado ? (
+        <div className="mb-6">
+          <AdminScopeNotice
+            title={`Voce esta gerenciando a agenda de ${barbeiroSelecionado.nome}.`}
+            description="Todas as acoes desta tela vao valer para o barbeiro selecionado. Revise esse contexto antes de concluir, marcar falta ou cancelar."
+          />
+        </div>
+      ) : null}
 
-      <AdminPanel title="Agenda do dia" description="Tudo que e seu aparece aqui: horarios confirmados, pendentes e qualquer reserva manual legada.">
-        {loading ? <p className="text-[var(--muted)]">Carregando agenda...</p> : null}
+        <AdminPanel title="Compromissos da data" description="Aqui ficam seus agendamentos e reservas manuais da data escolhida, organizados em uma unica lista.">
+        {contextLoading || loading ? <p className="text-[var(--muted)]">Carregando agenda...</p> : null}
 
-        {!loading && agenda.length === 0 ? <p className="text-[var(--muted)]">Nenhum compromisso para esta data.</p> : null}
+        {!contextLoading && !loading && agenda.length === 0 ? <p className="text-[var(--muted)]">Nenhum compromisso para esta data.</p> : null}
 
-        {!loading && agenda.length > 0 ? (
+        {!contextLoading && !loading && agenda.length > 0 ? (
           <div className="space-y-4">
             {agenda.map((item) => {
               const isCustom = item.origem === "horario_customizado";
@@ -202,7 +309,7 @@ export default function AdminAgendaPage() {
                         ) : null}
                       </div>
                       <p className="text-sm text-[var(--muted)]">
-                        {item.nome_cliente} • {item.celular_cliente || "sem celular"}
+                        {item.nome_cliente} - {item.celular_cliente || "sem celular"}
                       </p>
                       <p className="text-sm text-[var(--muted)]">
                         {item.hora_inicio.slice(0, 5)} - {item.hora_fim.slice(0, 5)}
@@ -243,3 +350,4 @@ export default function AdminAgendaPage() {
     </>
   );
 }
+

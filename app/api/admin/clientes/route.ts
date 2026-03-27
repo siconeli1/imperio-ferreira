@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const planoId = String(searchParams.get("plano_id") ?? "").trim();
     const somenteComPlano = searchParams.get("com_plano") === "true";
 
-    const [clientesRes, assinaturasRes, planos] = await Promise.all([
+    const [clientesRes, assinaturasRes, agendamentosRes, planos] = await Promise.all([
       supabase
         .from("clientes")
         .select("id, auth_user_id, nome, telefone, created_at")
@@ -25,43 +25,50 @@ export async function GET(request: Request) {
         .from("assinaturas")
         .select("id, cliente_id, plano_id, status, fim_ciclo, proxima_renovacao")
         .eq("status", "ativo"),
+      supabase
+        .from("agendamentos")
+        .select("cliente_id, data, hora_inicio")
+        .not("cliente_id", "is", null)
+        .order("data", { ascending: false })
+        .order("hora_inicio", { ascending: false }),
       listarPlanosAtivos(),
     ]);
 
-    if (clientesRes.error || assinaturasRes.error) {
-      throw new Error(clientesRes.error?.message || assinaturasRes.error?.message || "Erro ao carregar clientes.");
+    if (clientesRes.error || assinaturasRes.error || agendamentosRes.error) {
+      throw new Error(
+        clientesRes.error?.message ||
+        assinaturasRes.error?.message ||
+        agendamentosRes.error?.message ||
+        "Erro ao carregar clientes."
+      );
     }
 
     const planoById = new Map((planos as Plano[]).map((item) => [item.id, item]));
     const assinaturaByCliente = new Map((assinaturasRes.data ?? []).map((item) => [item.cliente_id, item]));
     const emailByAuthUserId = await buildCustomerEmailMap((clientesRes.data ?? []).map((cliente) => cliente.auth_user_id));
+    const ultimaVisitaByCliente = new Map<string, string>();
 
-    let clientes = await Promise.all((clientesRes.data ?? []).map(async (cliente) => {
-      const ultimaVisitaRes = await supabase
-        .from("agendamentos")
-        .select("data, hora_inicio")
-        .eq("cliente_id", cliente.id)
-        .order("data", { ascending: false })
-        .order("hora_inicio", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (ultimaVisitaRes.error) {
-        throw new Error(ultimaVisitaRes.error.message);
+    for (const agendamento of agendamentosRes.data ?? []) {
+      const clienteIdAgendamento = agendamento.cliente_id;
+      if (!clienteIdAgendamento || ultimaVisitaByCliente.has(clienteIdAgendamento)) {
+        continue;
       }
+      ultimaVisitaByCliente.set(clienteIdAgendamento, agendamento.data);
+    }
 
+    let clientes = (clientesRes.data ?? []).map((cliente) => {
       const assinatura = assinaturaByCliente.get(cliente.id);
       return {
         ...cliente,
         email_google: emailByAuthUserId.get(cliente.auth_user_id) ?? null,
-        ultima_visita: ultimaVisitaRes.data?.data ?? null,
+        ultima_visita: ultimaVisitaByCliente.get(cliente.id) ?? null,
         plano_ativo: assinatura?.plano_id ?? null,
         plano_nome: assinatura?.plano_id ? planoById.get(assinatura.plano_id)?.nome ?? assinatura.plano_id : null,
         assinatura_id: assinatura?.id ?? null,
         vencimento: assinatura?.proxima_renovacao ?? null,
         whatsapp_link: getWhatsAppLink(cliente.telefone),
       };
-    }));
+    });
 
     if (busca) {
       clientes = clientes.filter((cliente) => cliente.nome.toLowerCase().includes(busca) || cliente.telefone.includes(busca));

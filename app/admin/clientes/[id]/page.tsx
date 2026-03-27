@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -108,6 +108,16 @@ export default function ClienteDetalhePage() {
   }, [carregar, clienteId]);
 
   async function acaoPlano(acao: "adicionar_plano" | "renovar_plano" | "troca_imediata") {
+    const mensagens = {
+      adicionar_plano: "Adicionar este plano ao cliente agora?",
+      renovar_plano: "Renovar o plano deste cliente agora?",
+      troca_imediata: "Aplicar a troca imediata deste plano agora? Os creditos novos entram no ciclo atual.",
+    } as const;
+
+    if (!window.confirm(mensagens[acao])) {
+      return;
+    }
+
     setErro("");
     setMsg("");
 
@@ -164,6 +174,7 @@ export default function ClienteDetalhePage() {
 
   async function cancelarPlano() {
     if (!detalhe?.assinatura?.id) return;
+    if (!window.confirm("Cancelar o plano ativo deste cliente agora?")) return;
 
     const res = await fetch(`/api/admin/clientes/${clienteId}`, {
       method: "PATCH",
@@ -181,6 +192,10 @@ export default function ClienteDetalhePage() {
   }
 
   async function registrarUsoManual() {
+    if (!window.confirm("Registrar esse uso manual do plano agora? Essa acao consome creditos do cliente.")) {
+      return;
+    }
+
     const res = await fetch("/api/admin/assinaturas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -207,7 +222,7 @@ export default function ClienteDetalhePage() {
       <AdminPageHeading
         eyebrow="Perfil do cliente"
         title={detalhe?.cliente.nome ?? "Carregando cliente"}
-        description="Veja os dados pessoais, o historico financeiro, o uso do plano e as acoes administrativas concentradas em um unico lugar."
+        description="Veja os dados do cliente, o uso do plano, o historico financeiro e as acoes administrativas em uma unica tela."
       />
 
       {erro ? <div className="mb-6"><AdminNotice tone="danger">{erro}</AdminNotice></div> : null}
@@ -298,7 +313,7 @@ export default function ClienteDetalhePage() {
               <div className="space-y-3">
                 {detalhe.reservas_periodo.slice(0, 8).map((item, index) => (
                   <div key={`${item.id ?? index}`} className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-[var(--muted)]">
-                    {String(item.data ?? "-")} • {String(item.servico_nome ?? "-")} • {String(item.status_agendamento ?? "agendado")}
+                    {String(item.data ?? "-")} - {String(item.servico_nome ?? "-")} - {String(item.status_agendamento ?? "agendado")}
                   </div>
                 ))}
                 {detalhe.reservas_periodo.length === 0 ? <p className="text-[var(--muted)]">Sem reservas no ciclo.</p> : null}
@@ -309,7 +324,7 @@ export default function ClienteDetalhePage() {
               <div className="space-y-3">
                 {detalhe.historico_uso.slice(0, 8).map((item, index) => (
                   <div key={`${item.id ?? index}`} className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-[var(--muted)]">
-                    {String(item.tipo_movimentacao ?? "-")} • {String(item.categoria_servico ?? "-")} • {String(item.quantidade ?? 1)}
+                    {String(item.tipo_movimentacao ?? "-")} - {String(item.categoria_servico ?? "-")} - {String(item.quantidade ?? 1)}
                   </div>
                 ))}
                 {detalhe.historico_uso.length === 0 ? <p className="text-[var(--muted)]">Sem uso registrado.</p> : null}
@@ -320,7 +335,7 @@ export default function ClienteDetalhePage() {
               <div className="space-y-3">
                 {detalhe.financeiro.slice(0, 8).map((item, index) => (
                   <div key={`${item.id ?? index}`} className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-[var(--muted)]">
-                    {String(item.descricao ?? "-")} • {Number(item.valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    {String(item.descricao ?? "-")} - {Number(item.valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                   </div>
                 ))}
                 {detalhe.financeiro.length === 0 ? <p className="text-[var(--muted)]">Sem lancamentos.</p> : null}
@@ -331,7 +346,7 @@ export default function ClienteDetalhePage() {
               <div className="space-y-3">
                 {detalhe.historico_telefone.slice(0, 8).map((item, index) => (
                   <div key={`${item.id ?? index}`} className="rounded-2xl border border-white/10 bg-black/20 p-3 text-sm text-[var(--muted)]">
-                    {String(item.telefone ?? "-")} • {String(item.origem ?? "-")}
+                    {String(item.telefone ?? "-")} - {String(item.origem ?? "-")}
                   </div>
                 ))}
                 {detalhe.historico_telefone.length === 0 ? <p className="text-[var(--muted)]">Sem alteracoes registradas.</p> : null}
@@ -343,3 +358,4 @@ export default function ClienteDetalhePage() {
     </>
   );
 }
+
