@@ -38,29 +38,33 @@ export function CustomerOnboardingCard({
 
     setLoading(true);
     setErro("");
+    try {
+      const method = existingProfile ? "PATCH" : "POST";
+      const res = await fetch("/api/client/profile", {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          nome: nome.trim(),
+          telefone,
+        }),
+      });
 
-    const method = existingProfile ? "PATCH" : "POST";
-    const res = await fetch("/api/client/profile", {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        nome: nome.trim(),
-        telefone,
-      }),
-    });
+      const json = await res.json();
+      if (!res.ok) {
+        setErro(json.erro || "Erro ao salvar cadastro.");
+        setLoading(false);
+        return;
+      }
 
-    const json = await res.json();
-    if (!res.ok) {
-      setErro(json.erro || "Erro ao salvar cadastro.");
       setLoading(false);
-      return;
+      await onSaved?.();
+    } catch {
+      setErro("Nao foi possivel salvar seu cadastro agora.");
+      setLoading(false);
     }
-
-    setLoading(false);
-    await onSaved?.();
   }
 
   return (

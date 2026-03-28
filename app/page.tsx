@@ -1,38 +1,34 @@
 import Image from "next/image";
 import Link from "next/link";
+import { listarPlanosAtivos } from "@/lib/planos";
 import { getWhatsAppLink } from "@/lib/whatsapp";
 
 const ENDERECO = "Av dos Arnaldos 3407, Antonia Franco, Fernandopolis";
 const WHATSAPP_LOJA = "+55 17 98131-4724";
 
-const planos = [
-  {
-    id: "bronze-corte",
-    nome: "Plano Bronze Corte",
-    preco: "R$ 100",
-    itens: ["4 cortes de cabelo"],
-  },
-  {
-    id: "bronze-barba",
-    nome: "Plano Bronze Barba",
-    preco: "R$ 60",
-    itens: ["4 barbas"],
-  },
-  {
-    id: "prata",
-    nome: "Plano Prata",
-    preco: "R$ 110",
-    itens: ["4 cortes de cabelo", "4 sobrancelhas"],
-  },
-  {
-    id: "ouro",
-    nome: "Plano Ouro",
-    preco: "R$ 150",
-    itens: ["4 cortes de cabelo", "4 barbas", "4 sobrancelhas"],
-  },
-];
+function formatarPreco(valor: number) {
+  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
 
-export default function Home() {
+function buildPlanoItens(plano: Awaited<ReturnType<typeof listarPlanosAtivos>>[number]) {
+  const itens: string[] = [];
+
+  if (Number(plano.cortes_incluidos) > 0) {
+    itens.push(`${plano.cortes_incluidos} corte(s)`);
+  }
+  if (Number(plano.barbas_incluidas) > 0) {
+    itens.push(`${plano.barbas_incluidas} barba(s)`);
+  }
+  if (Number(plano.sobrancelhas_incluidas) > 0) {
+    itens.push(`${plano.sobrancelhas_incluidas} sobrancelha(s)`);
+  }
+
+  return itens.length > 0 ? itens : ["Cobertura personalizada"];
+}
+
+export default async function Home() {
+  const planos = await listarPlanosAtivos();
+
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,#030605_0%,#08110f_100%)] text-[var(--foreground)]">
       <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
@@ -80,9 +76,10 @@ export default function Home() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             {planos.map((plano) => {
+              const itens = buildPlanoItens(plano);
               const whatsappLink = getWhatsAppLink(
                 WHATSAPP_LOJA,
-                `Boa tarde, gostaria de assinar o plano mensal ${plano.nome}`
+                `Olá, gostaria de assinar o plano mensal ${plano.nome}.`
               );
 
               return (
@@ -96,12 +93,12 @@ export default function Home() {
                       <h3 className="mt-3 text-2xl font-semibold">{plano.nome}</h3>
                     </div>
                     <div className="whitespace-nowrap rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-4 py-2 text-sm font-semibold text-[var(--accent-strong)]">  
-                      {plano.preco}
+                      {formatarPreco(Number(plano.preco))}
                     </div>
                   </div>
 
                   <div className="mt-6 space-y-3">
-                    {plano.itens.map((item) => (
+                    {itens.map((item) => (
                       <div key={item} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-[var(--foreground)]">
                         {item}
                       </div>

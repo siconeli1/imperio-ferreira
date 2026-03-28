@@ -6,7 +6,12 @@ import { getBusyIntervals, getAnyAvailableBarber, overlaps } from "@/lib/agenda-
 import { findBarbeiroById } from "@/lib/barbeiros";
 import { requireCustomerAuth, getCustomerProfileByAuthUserId } from "@/lib/customer-auth";
 import { encontrarServicosAtivosPorIds } from "@/lib/servicos";
-import { calcularValorFinalDosItens, decidirCobrancaItens, reservarCreditosDoAgendamento } from "@/lib/agendamento-planos";
+import {
+  calcularValorFinalDosItens,
+  decidirCobrancaItens,
+  liquidarCreditosDoAgendamento,
+  reservarCreditosDoAgendamento,
+} from "@/lib/agendamento-planos";
 
 function buildCancelavelAte(data: string, horaInicio: string) {
   const [year, month, day] = data.split("-").map(Number);
@@ -96,78 +101,93 @@ export async function POST(req: Request) {
     const valorFinal = calcularValorFinalDosItens(cobranca.itens);
     const servicoResumo = servicos.map((servico) => servico.nome).join(" + ");
 
-    const { data: inserted, error } = await supabase
-      .from("agendamentos")
-      .insert({
-        barbeiro_id: barbeiro.id,
-        cliente_id: cliente.id,
-        auth_user_id: auth.authUserId,
-        assinatura_id: cobranca.assinatura?.id ?? null,
-        data,
-        hora_inicio: horaInicio,
-        hora_fim: minutesToTime(fimReserva),
-        nome_cliente: cliente.nome,
-        celular_cliente: cliente.telefone,
-        servico_id: servicos[0].id,
-        servico_nome: servicoResumo,
-        servico_duracao_minutos: duracaoTotal,
-        servico_preco: valorTabela,
-        valor_tabela: valorTabela,
-        desconto: 0,
-        acrescimo: 0,
-        valor_final: valorFinal,
-        status: "ativo",
-        status_agendamento: "agendado",
-        status_atendimento: "pendente",
-        status_pagamento: "pendente",
-        origem_agendamento: "site",
-        tipo_cobranca: tipoCobranca,
-        cancelavel_ate: buildCancelavelAte(data, horaInicio),
-      })
-      .select("id, data, hora_inicio, hora_fim, nome_cliente, celular_cliente, barbeiro_id, servico_nome, servico_preco, valor_final, tipo_cobranca")
-      .single();
+    let insertedId: string | null = null;
 
-    if (error) {
-      const msg = error.message?.toLowerCase?.() ?? "";
-      if (msg.includes("duplicate") || msg.includes("unique") || msg.includes("exclusion") || msg.includes("overlap")) {
-        return NextResponse.json({ erro: "Horario ja reservado para esse periodo" }, { status: 409 });
+    try {
+      const { data: inserted, error } = await supabase
+        .from("agendamentos")
+        .insert({
+          barbeiro_id: barbeiro.id,
+          cliente_id: cliente.id,
+          auth_user_id: auth.authUserId,
+          assinatura_id: cobranca.assinatura?.id ?? null,
+          data,
+          hora_inicio: horaInicio,
+          hora_fim: minutesToTime(fimReserva),
+          nome_cliente: cliente.nome,
+          celular_cliente: cliente.telefone,
+          servico_id: servicos[0].id,
+          servico_nome: servicoResumo,
+          servico_duracao_minutos: duracaoTotal,
+          servico_preco: valorTabela,
+          valor_tabela: valorTabela,
+          desconto: 0,
+          acrescimo: 0,
+          valor_final: valorFinal,
+          status: "ativo",
+          status_agendamento: "agendado",
+          status_atendimento: "pendente",
+          status_pagamento: "pendente",
+          origem_agendamento: "site",
+          tipo_cobranca: tipoCobranca,
+          cancelavel_ate: buildCancelavelAte(data, horaInicio),
+        })
+        .select("id, data, hora_inicio, hora_fim, nome_cliente, celular_cliente, barbeiro_id, servico_nome, servico_preco, valor_final, tipo_cobranca")
+        .single();
+
+      if (error) {
+        const msg = error.message?.toLowerCase?.() ?? "";
+        if (msg.includes("duplicate") || msg.includes("unique") || msg.includes("exclusion") || msg.includes("overlap")) {
+          return NextResponse.json({ erro: "Horario ja reservado para esse periodo" }, { status: 409 });
+        }
+        throw new Error(error.message);
       }
-      return NextResponse.json({ erro: error.message }, { status: 500 });
+
+      insertedId = inserted.id;
+
+      const itensPayload = cobranca.itens.map((item, index) => ({
+        agendamento_id: inserted.id,
+        assinatura_id: item.assinatura_id,
+        servico_id: item.servico.id,
+        servico_nome: item.servico.nome,
+        servico_categoria: item.servico.categoria,
+        servico_duracao_minutos: item.servico.duracao_minutos,
+        servico_preco: item.servico.preco,
+        tipo_cobranca: item.tipo_cobranca,
+        status_credito: item.status_credito,
+        creditos_corte: item.creditos_plano.corte,
+        creditos_barba: item.creditos_plano.barba,
+        creditos_sobrancelha: item.creditos_plano.sobrancelha,
+        ordem: index + 1,
+      }));
+
+      const { error: itemsError } = await supabase.from("agendamento_itens").insert(itensPayload);
+      if (itemsError) {
+        throw new Error(itemsError.message);
+      }
+
+      await reservarCreditosDoAgendamento(cliente.id, inserted.id, cobranca.itens);
+
+      return NextResponse.json({
+        ok: true,
+        agendamento: inserted,
+        barbeiro: {
+          id: barbeiro.id,
+          nome: barbeiro.nome,
+          slug: barbeiro.slug,
+        },
+        itens: itensPayload,
+      });
+    } catch (error) {
+      if (insertedId) {
+        await liquidarCreditosDoAgendamento(insertedId, "devolucao_credito").catch(() => null);
+        await supabase.from("agendamento_itens").delete().eq("agendamento_id", insertedId);
+        await supabase.from("agendamentos").delete().eq("id", insertedId);
+      }
+
+      const message = error instanceof Error ? error.message : "Erro ao confirmar agendamento.";
+      return NextResponse.json({ erro: message }, { status: 500 });
     }
-
-    const itensPayload = cobranca.itens.map((item, index) => ({
-      agendamento_id: inserted.id,
-      assinatura_id: item.assinatura_id,
-      servico_id: item.servico.id,
-      servico_nome: item.servico.nome,
-      servico_categoria: item.servico.categoria,
-      servico_duracao_minutos: item.servico.duracao_minutos,
-      servico_preco: item.servico.preco,
-      tipo_cobranca: item.tipo_cobranca,
-      status_credito: item.status_credito,
-      creditos_corte: item.creditos_plano.corte,
-      creditos_barba: item.creditos_plano.barba,
-      creditos_sobrancelha: item.creditos_plano.sobrancelha,
-      ordem: index + 1,
-    }));
-
-    const { error: itemsError } = await supabase.from("agendamento_itens").insert(itensPayload);
-    if (itemsError) {
-      return NextResponse.json({ erro: itemsError.message }, { status: 500 });
-    }
-
-    await reservarCreditosDoAgendamento(cliente.id, inserted.id, cobranca.itens);
-
-    return NextResponse.json({
-      ok: true,
-      agendamento: inserted,
-      barbeiro: {
-        id: barbeiro.id,
-        nome: barbeiro.nome,
-        slug: barbeiro.slug,
-      },
-      itens: itensPayload,
-    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro ao confirmar agendamento.";
     return NextResponse.json({ erro: message }, { status: message === "Cliente nao autenticado" ? 401 : 500 });

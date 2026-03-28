@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { calcularValorFinal, syncAutoClosedAgendamentos } from "@/lib/agendamento";
+import { calcularValorFinal, projectAutoClosedAgendamentos } from "@/lib/agendamento";
 import { canCancelAppointment, canConcludeAppointment, canMarkNoShow } from "@/lib/agendamento-rules";
 import { requireAdminSession, resolveAdminBarbeiroScope } from "@/lib/admin-auth";
 import {
@@ -12,8 +12,9 @@ import {
 } from "@/lib/agendamento-planos";
 import { getBusyIntervals, overlaps, parseTimeToMinutes } from "@/lib/agenda-conflicts";
 import { minutesToTime } from "@/lib/agenda";
+import { validateBusinessSlot } from "@/lib/agenda-booking";
 import { encontrarServicoAtivo } from "@/lib/servicos";
-import { normalizePhone } from "@/lib/phone";
+import { isValidPhone, normalizePhone } from "@/lib/phone";
 
 function buildCancelavelAte(data: string, horaInicio: string) {
   const [year, month, day] = data.split("-").map(Number);
@@ -84,7 +85,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ erro: error.message }, { status: 500 });
     }
 
-    const agendamentos = await syncAutoClosedAgendamentos(agendamentosRaw || []);
+    const agendamentos = projectAutoClosedAgendamentos(agendamentosRaw || []);
     const { data: horariosCustomizados, error: errorCustom } = await customQuery;
     if (errorCustom) {
       return NextResponse.json({ erro: errorCustom.message }, { status: 500 });
@@ -247,6 +248,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: "Servico nao encontrado." }, { status: 404 });
     }
 
+    const slotValidation = validateBusinessSlot(data, horaInicio, Number(servico.duracao_minutos));
+    if (!slotValidation.ok) {
+      return NextResponse.json({ erro: slotValidation.erro }, { status: 409 });
+    }
+
     let clienteIdFinal: string | null = null;
     let authUserIdFinal: string | null = null;
     let nomeClienteFinal = nomeManual;
@@ -277,8 +283,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ erro: "Selecione um cliente cadastrado ou informe nome e celular." }, { status: 400 });
     }
 
+    if (!isValidPhone(celularClienteFinal)) {
+      return NextResponse.json({ erro: "Informe um celular valido com DDD para a marcacao manual." }, { status: 400 });
+    }
+
     const inicioReserva = parseTimeToMinutes(horaInicio);
-    const fimReserva = inicioReserva + Number(servico.duracao_minutos);
+    const fimReserva = slotValidation.fimReserva;
 
     const busyState = await getBusyIntervals(data, targetBarbeiroId);
     if (busyState.bloqueioDiaInteiro) {
@@ -315,75 +325,90 @@ export async function POST(req: Request) {
 
     const valorFinal = calcularValorFinalDosItens(cobranca.itens);
 
-    const { data: inserted, error } = await supabase
-      .from("agendamentos")
-      .insert({
-        barbeiro_id: targetBarbeiroId,
-        cliente_id: clienteIdFinal,
-        auth_user_id: authUserIdFinal,
-        assinatura_id: cobranca.assinatura?.id ?? null,
-        data,
-        hora_inicio: horaInicio,
-        hora_fim: minutesToTime(fimReserva),
-        nome_cliente: nomeClienteFinal,
-        celular_cliente: celularClienteFinal,
-        servico_id: servico.id,
-        servico_nome: servico.nome,
-        servico_duracao_minutos: servico.duracao_minutos,
-        servico_preco: valorTabela,
-        valor_tabela: valorTabela,
-        desconto: 0,
-        acrescimo: 0,
-        valor_final: valorFinal,
-        status: "ativo",
-        status_agendamento: "confirmado",
-        status_atendimento: "pendente",
-        status_pagamento: "pendente",
-        origem_agendamento: "admin_manual",
-        tipo_cobranca: tipoCobranca,
-        cancelavel_ate: buildCancelavelAte(data, horaInicio),
-        observacoes,
-      })
-      .select("id, data, hora_inicio, hora_fim, nome_cliente, celular_cliente, servico_nome, valor_final, tipo_cobranca")
-      .single();
+    let insertedId: string | null = null;
 
-    if (error) {
-      return NextResponse.json({ erro: error.message }, { status: 500 });
+    try {
+      const { data: inserted, error } = await supabase
+        .from("agendamentos")
+        .insert({
+          barbeiro_id: targetBarbeiroId,
+          cliente_id: clienteIdFinal,
+          auth_user_id: authUserIdFinal,
+          assinatura_id: cobranca.assinatura?.id ?? null,
+          data,
+          hora_inicio: horaInicio,
+          hora_fim: minutesToTime(fimReserva),
+          nome_cliente: nomeClienteFinal,
+          celular_cliente: celularClienteFinal,
+          servico_id: servico.id,
+          servico_nome: servico.nome,
+          servico_duracao_minutos: servico.duracao_minutos,
+          servico_preco: valorTabela,
+          valor_tabela: valorTabela,
+          desconto: 0,
+          acrescimo: 0,
+          valor_final: valorFinal,
+          status: "ativo",
+          status_agendamento: "confirmado",
+          status_atendimento: "pendente",
+          status_pagamento: "pendente",
+          origem_agendamento: "admin_manual",
+          tipo_cobranca: tipoCobranca,
+          cancelavel_ate: buildCancelavelAte(data, horaInicio),
+          observacoes,
+        })
+        .select("id, data, hora_inicio, hora_fim, nome_cliente, celular_cliente, servico_nome, valor_final, tipo_cobranca")
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      insertedId = inserted.id;
+
+      const itensPayload = cobranca.itens.map((item, index) => ({
+        agendamento_id: inserted.id,
+        assinatura_id: item.assinatura_id,
+        servico_id: item.servico.id,
+        servico_nome: item.servico.nome,
+        servico_categoria: item.servico.categoria,
+        servico_duracao_minutos: item.servico.duracao_minutos,
+        servico_preco: item.servico.preco,
+        tipo_cobranca: item.tipo_cobranca,
+        status_credito: item.status_credito,
+        creditos_corte: item.creditos_plano.corte,
+        creditos_barba: item.creditos_plano.barba,
+        creditos_sobrancelha: item.creditos_plano.sobrancelha,
+        ordem: index + 1,
+      }));
+
+      const { error: itemsError } = await supabase.from("agendamento_itens").insert(itensPayload);
+      if (itemsError) {
+        throw new Error(itemsError.message);
+      }
+
+      if (clienteIdFinal) {
+        await reservarCreditosDoAgendamento(clienteIdFinal, inserted.id, cobranca.itens);
+      }
+
+      return NextResponse.json({
+        ok: true,
+        agendamento: inserted,
+        aviso:
+          clienteIdFinal && cobranca.itensSemSaldo.length > 0
+            ? "Cliente com plano sem saldo suficiente. Horário lançado como serviço avulso."
+            : null,
+      });
+    } catch (error) {
+      if (insertedId) {
+        await liquidarCreditosDoAgendamento(insertedId, "devolucao_credito").catch(() => null);
+        await supabase.from("agendamento_itens").delete().eq("agendamento_id", insertedId);
+        await supabase.from("agendamentos").delete().eq("id", insertedId);
+      }
+
+      const message = error instanceof Error ? error.message : "Erro interno ao criar agendamento manual.";
+      return NextResponse.json({ erro: message }, { status: 500 });
     }
-
-    const itensPayload = cobranca.itens.map((item, index) => ({
-      agendamento_id: inserted.id,
-      assinatura_id: item.assinatura_id,
-      servico_id: item.servico.id,
-      servico_nome: item.servico.nome,
-      servico_categoria: item.servico.categoria,
-      servico_duracao_minutos: item.servico.duracao_minutos,
-      servico_preco: item.servico.preco,
-      tipo_cobranca: item.tipo_cobranca,
-      status_credito: item.status_credito,
-      creditos_corte: item.creditos_plano.corte,
-      creditos_barba: item.creditos_plano.barba,
-      creditos_sobrancelha: item.creditos_plano.sobrancelha,
-      ordem: index + 1,
-    }));
-
-    const { error: itemsError } = await supabase.from("agendamento_itens").insert(itensPayload);
-    if (itemsError) {
-      return NextResponse.json({ erro: itemsError.message }, { status: 500 });
-    }
-
-    if (clienteIdFinal) {
-      await reservarCreditosDoAgendamento(clienteIdFinal, inserted.id, cobranca.itens);
-    }
-
-    return NextResponse.json({
-      ok: true,
-      agendamento: inserted,
-      aviso:
-        clienteIdFinal && cobranca.itensSemSaldo.length > 0
-          ? "Cliente com plano sem saldo suficiente. Horario lancado como servico avulso."
-          : null,
-    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro interno ao criar agendamento manual.";
     return NextResponse.json({ erro: message }, { status: getRouteErrorStatus(message) });

@@ -43,16 +43,21 @@ export function useCustomerSession() {
   }, [supabase]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void refresh();
-    }, 0);
+    let cancelled = false;
+
+    void (async () => {
+      await Promise.resolve();
+      if (!cancelled) {
+        await refresh();
+      }
+    })();
 
     const { data: listener } = supabase.auth.onAuthStateChange(() => {
       void refresh();
     });
 
     return () => {
-      window.clearTimeout(timer);
+      cancelled = true;
       listener.subscription.unsubscribe();
     };
   }, [refresh, supabase]);

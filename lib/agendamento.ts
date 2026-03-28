@@ -1,5 +1,3 @@
-import { supabase } from '@/lib/supabase'
-
 export type StatusAgendamento = 'agendado' | 'confirmado' | 'cancelado' | 'no_show'
 export type StatusAtendimento = 'pendente' | 'em_atendimento' | 'concluido'
 export type StatusPagamento = 'pendente' | 'pago' | 'estornado'
@@ -103,46 +101,21 @@ export function shouldAutoCloseAgendamento(
   return timeToMinutes(agendamento.hora_fim) + 30 <= current.minutes
 }
 
-export async function syncAutoClosedAgendamentos<T extends AutoCloseCandidate>(
+export function projectAutoClosedAgendamentos<T extends AutoCloseCandidate>(
   agendamentos: T[],
   referenceDate = new Date()
 ) {
-  const pending = agendamentos.filter((agendamento) =>
-    shouldAutoCloseAgendamento(agendamento, referenceDate)
-  )
+  return agendamentos.map((agendamento) => {
+    if (!shouldAutoCloseAgendamento(agendamento, referenceDate)) {
+      return agendamento
+    }
 
-  if (pending.length === 0) {
-    return agendamentos
-  }
-
-  const updates = await Promise.all(
-    pending.map(async (agendamento) => {
-      const patch: Record<string, string> = {
-        status: 'ativo',
-        status_agendamento: 'confirmado',
-        status_atendimento: 'concluido',
-        status_pagamento: 'pago',
-      }
-
-      if (!agendamento.concluido_em) {
-        patch.concluido_em = new Date().toISOString()
-      }
-
-      const { data, error } = await supabase
-        .from('agendamentos')
-        .update(patch)
-        .eq('id', agendamento.id)
-        .select('*')
-        .single()
-
-      if (error) {
-        throw new Error(error.message)
-      }
-
-      return data as T
-    })
-  )
-
-  const updatedById = new Map(updates.map((item) => [item.id, item]))
-  return agendamentos.map((agendamento) => updatedById.get(agendamento.id) ?? agendamento)
+    return {
+      ...agendamento,
+      status: 'ativo',
+      status_agendamento: 'confirmado',
+      status_atendimento: 'concluido',
+      concluido_em: agendamento.concluido_em ?? new Date().toISOString(),
+    }
+  })
 }

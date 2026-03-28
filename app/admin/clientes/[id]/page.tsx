@@ -100,11 +100,18 @@ export default function ClienteDetalhePage() {
 
   useEffect(() => {
     if (!clienteId) return;
-    const timer = window.setTimeout(() => {
-      void carregar();
-    }, 0);
+    let cancelled = false;
 
-    return () => window.clearTimeout(timer);
+    void (async () => {
+      await Promise.resolve();
+      if (!cancelled) {
+        await carregar();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [carregar, clienteId]);
 
   async function acaoPlano(acao: "adicionar_plano" | "renovar_plano" | "troca_imediata") {

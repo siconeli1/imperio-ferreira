@@ -159,19 +159,11 @@ export default function AdminMarcarPage() {
   }, [barbeiroId, contextLoading, data]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void carregarBase();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    void carregarBase();
   }, [carregarBase]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void carregarAgendaDia();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    void carregarAgendaDia();
   }, [carregarAgendaDia]);
 
   const clientesFiltrados = useMemo(() => {

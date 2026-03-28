@@ -78,7 +78,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
 
   useEffect(() => {
     async function buscarHorarios() {
-      if (!accessToken || !profile || !data || !servicoSelecionado || pastDate || outOfRange || isClosedDay) {
+      if (!data || !servicoSelecionado || pastDate || outOfRange || isClosedDay) {
         setHorarios([]);
         setTodosHorarios([]);
         setHorarioSelecionado("");
@@ -117,7 +117,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
     }
 
     void buscarHorarios();
-  }, [accessToken, barbeiroId, data, isClosedDay, outOfRange, pastDate, profile, servicoSelecionado]);
+  }, [barbeiroId, data, isClosedDay, outOfRange, pastDate, servicoSelecionado]);
 
   useEffect(() => {
     setHorarioSelecionado("");
@@ -311,48 +311,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
 
         {!sessionReady && <p className="text-center text-[var(--muted)]">Carregando sua conta...</p>}
 
-        {sessionReady && !accessToken && (
-          <section className="mx-auto max-w-3xl border border-white/10 bg-white/[0.03] p-8 text-center">
-            <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Antes de agendar</p>
-            <h2 className="mt-4 text-3xl font-semibold">Entre com sua conta Google</h2>
-            <p className="mt-4 text-[var(--muted)]">
-              O login acontece primeiro para que sua reserva fique salva na sua conta desde o inicio, sem pedir autenticacao no meio do processo.
-            </p>
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loadingLogin}
-              className="mt-8 bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)] disabled:opacity-50"
-            >
-              {loadingLogin ? "Redirecionando..." : "Entrar com Google"}
-            </button>
-          </section>
-        )}
-
-        {sessionReady && accessToken && !profile && (
-          <div className="mx-auto max-w-3xl">
-            <div className="space-y-4">
-              <CustomerOnboardingCard
-                accessToken={accessToken}
-                title="Complete seu cadastro para continuar"
-                description="Falta so seu nome e celular. Assim que salvar, voce segue direto para o agendamento e essa etapa nao aparece mais nas proximas visitas."
-                submitLabel="Salvar e continuar para a reserva"
-                onSaved={refresh}
-              />
-              <div className="flex justify-center">
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="border border-white/20 px-6 py-3 font-semibold hover:bg-white/10"
-                >
-                  Sair e trocar conta
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {sessionReady && profile && (
+        {sessionReady && (
           <>
             <div className="mb-8 flex flex-wrap items-center justify-center gap-4 text-sm">
               {["Servico", "Data", "Horario", "Confirmacao"].map((item, index) => (
@@ -470,7 +429,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
               <aside className="h-fit border border-white/10 bg-white/[0.03] p-6 lg:sticky lg:top-8">
                 <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Resumo do agendamento</p>
                 <div className="mt-6 space-y-4 text-sm">
-                  <ResumoItem label="Cliente" value={profile.nome} />
+                  <ResumoItem label="Cliente" value={profile?.nome ?? "Entrar com Google"} />
                   <ResumoItem label="Servico" value={servicoSelecionado?.nome ?? "-"} />
                   <ResumoItem
                     label="Duracao"
@@ -494,6 +453,42 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                   />
                 </div>
 
+                {!accessToken && (
+                  <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="font-semibold">Entre para confirmar</p>
+                    <p className="mt-2 text-sm text-[var(--muted)]">
+                      Voce ja pode escolher servico, data e horario. O login entra so na confirmacao para vincular a reserva a sua conta.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleGoogleLogin}
+                      disabled={loadingLogin}
+                      className="mt-4 inline-flex w-full items-center justify-center bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)] disabled:opacity-50"
+                    >
+                      {loadingLogin ? "Redirecionando..." : "Entrar com Google"}
+                    </button>
+                  </div>
+                )}
+
+                {accessToken && !profile && (
+                  <div className="mt-6 space-y-4">
+                    <CustomerOnboardingCard
+                      accessToken={accessToken}
+                      title="Complete seu cadastro para continuar"
+                      description="Falta so seu nome e celular. Assim que salvar, voce volta para esta etapa e confirma sem recomecar."
+                      submitLabel="Salvar e continuar"
+                      onSaved={refresh}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="inline-flex w-full items-center justify-center border border-white/20 px-6 py-3 font-semibold hover:bg-white/10"
+                    >
+                      Sair e trocar conta
+                    </button>
+                  </div>
+                )}
+
                 {confirmarAvulso && itensSemSaldo.length > 0 && (
                   <div className="mt-6 border border-amber-500/30 bg-amber-950/30 p-4 text-sm text-amber-100">
                     <p className="font-semibold">Servico sem saldo no plano</p>
@@ -501,25 +496,29 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => reservar(false)}
-                  disabled={!servicoSelecionado || !data || !horarioSelecionado || loadingReserva}
-                  className="mt-8 inline-flex w-full items-center justify-center bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {loadingReserva ? "Confirmando..." : "Confirmar agendamento"}
-                </button>
+                {profile ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => reservar(false)}
+                      disabled={!servicoSelecionado || !data || !horarioSelecionado || loadingReserva}
+                      className="mt-8 inline-flex w-full items-center justify-center bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {loadingReserva ? "Confirmando..." : "Confirmar agendamento"}
+                    </button>
 
-                {confirmarAvulso && (
-                  <button
-                    type="button"
-                    onClick={() => reservar(true)}
-                    disabled={loadingReserva}
-                    className="mt-3 inline-flex w-full items-center justify-center border border-white/20 px-6 py-3 font-semibold hover:bg-white/10"
-                  >
-                    Confirmar como servico avulso
-                  </button>
-                )}
+                    {confirmarAvulso && (
+                      <button
+                        type="button"
+                        onClick={() => reservar(true)}
+                        disabled={loadingReserva}
+                        className="mt-3 inline-flex w-full items-center justify-center border border-white/20 px-6 py-3 font-semibold hover:bg-white/10"
+                      >
+                        Confirmar como servico avulso
+                      </button>
+                    )}
+                  </>
+                ) : null}
               </aside>
             </div>
           </>

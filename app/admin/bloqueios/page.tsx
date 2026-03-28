@@ -37,6 +37,9 @@ export default function AdminBloqueiosPage() {
   const [filtroData, setFiltroData] = useState(today);
   const [bloqueios, setBloqueios] = useState<Bloqueio[]>([]);
   const [tipo, setTipo] = useState<Bloqueio["tipo_bloqueio"]>("horario");
+  const [horaInicio, setHoraInicio] = useState("");
+  const [horaFim, setHoraFim] = useState("");
+  const [motivo, setMotivo] = useState("");
   const [adminCargo, setAdminCargo] = useState<"socio" | "barbeiro" | "">("");
   const [barbeiros, setBarbeiros] = useState<BarbeiroOption[]>([]);
   const [barbeiroId, setBarbeiroId] = useState("");
@@ -115,38 +118,29 @@ export default function AdminBloqueiosPage() {
   }, [barbeiroId, contextLoading, filtroData]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void carregarContexto();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    void carregarContexto();
   }, [carregarContexto]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void carregarBloqueios();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    void carregarBloqueios();
   }, [carregarBloqueios]);
 
   async function criarBloqueio(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErro("");
     setMsg("");
-    const form = new FormData(event.currentTarget);
 
     const res = await fetch("/api/bloqueios", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        data: form.get("data"),
+        data: filtroData,
         barbeiro_id: barbeiroId,
-        tipo_bloqueio: form.get("tipo_bloqueio"),
-        hora_inicio: form.get("hora_inicio"),
-        hora_fim: form.get("hora_fim"),
-        dia_inteiro: form.get("tipo_bloqueio") === "dia_inteiro",
-        motivo: form.get("motivo"),
+        tipo_bloqueio: tipo,
+        hora_inicio: horaInicio,
+        hora_fim: horaFim,
+        dia_inteiro: tipo === "dia_inteiro",
+        motivo,
       }),
     });
     const json = await res.json();
@@ -157,8 +151,10 @@ export default function AdminBloqueiosPage() {
     }
 
     setMsg("Bloqueio salvo com sucesso.");
-    event.currentTarget.reset();
     setTipo("horario");
+    setHoraInicio("");
+    setHoraFim("");
+    setMotivo("");
     await carregarBloqueios();
   }
 
@@ -221,7 +217,13 @@ export default function AdminBloqueiosPage() {
                 ))}
               </select>
             ) : null}
-            <input name="data" type="date" defaultValue={filtroData} className="datetime-input rounded-2xl border px-4 py-3" />
+            <input
+              name="data"
+              type="date"
+              value={filtroData}
+              onChange={(event) => setFiltroData(event.target.value)}
+              className="datetime-input rounded-2xl border px-4 py-3"
+            />
 
             <select
               name="tipo_bloqueio"
@@ -236,14 +238,28 @@ export default function AdminBloqueiosPage() {
 
             {tipo === "horario" ? (
               <div className="grid gap-3 sm:grid-cols-2">
-                <input name="hora_inicio" type="time" className="datetime-input rounded-2xl border px-4 py-3" />
-                <input name="hora_fim" type="time" className="datetime-input rounded-2xl border px-4 py-3" />
+                <input
+                  name="hora_inicio"
+                  type="time"
+                  value={horaInicio}
+                  onChange={(event) => setHoraInicio(event.target.value)}
+                  className="datetime-input rounded-2xl border px-4 py-3"
+                />
+                <input
+                  name="hora_fim"
+                  type="time"
+                  value={horaFim}
+                  onChange={(event) => setHoraFim(event.target.value)}
+                  className="datetime-input rounded-2xl border px-4 py-3"
+                />
               </div>
             ) : null}
 
             <input
               name="motivo"
               type="text"
+              value={motivo}
+              onChange={(event) => setMotivo(event.target.value)}
               placeholder="Motivo do bloqueio"
               className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3"
             />

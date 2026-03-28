@@ -13,6 +13,7 @@ type FinanceRow = {
   valor_final: number | null;
   status_agendamento: string;
   status_atendimento: string;
+  status_pagamento: string;
   tipo_cobranca: string;
 };
 
@@ -75,11 +76,11 @@ function sumValor(rows: FinanceRow[]) {
 }
 
 function isConcluded(row: FinanceRow) {
-  return row.status_atendimento === "concluido";
+  return row.status_atendimento === "concluido" && row.status_pagamento === "pago";
 }
 
 function isPending(row: FinanceRow) {
-  return row.status_agendamento !== "cancelado" && row.status_atendimento !== "concluido" && (row.status_agendamento === "agendado" || row.status_agendamento === "confirmado");
+  return row.status_agendamento !== "cancelado" && row.status_agendamento !== "no_show" && row.status_pagamento !== "pago";
 }
 
 function isNoShow(row: FinanceRow) {
@@ -111,7 +112,7 @@ export async function getFinanceSnapshot(params: {
 
   let query = supabase
     .from("agendamentos")
-    .select("id, barbeiro_id, data, nome_cliente, servico_nome, valor_final, status_agendamento, status_atendimento, tipo_cobranca")
+    .select("id, barbeiro_id, data, nome_cliente, servico_nome, valor_final, status_agendamento, status_atendimento, status_pagamento, tipo_cobranca")
     .gte("data", range.inicio)
     .lte("data", range.fim)
     .order("data", { ascending: true })
@@ -130,7 +131,7 @@ export async function getFinanceSnapshot(params: {
   const metrics = buildMetrics(rows);
 
   let receitaPlanos = 0;
-  if (params.scope === "geral" && params.period === "mes") {
+  if (params.scope === "geral") {
     const { data: planosData, error: planosError } = await supabase
       .from("financeiro_lancamentos")
       .select("valor")

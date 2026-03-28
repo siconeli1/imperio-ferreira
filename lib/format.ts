@@ -1,5 +1,5 @@
-import { getLocalDateInputValue, isDateBeyondLimitInTimezone, isDateInPastInTimezone } from '@/lib/date'
-import { formatPhone } from '@/lib/phone'
+import { getLocalDateInputValue, isDateBeyondLimitInTimezone, isDateInPastInTimezone } from "./date"
+import { formatPhone } from "./phone"
 
 export type Slot = {
   hora_inicio: string

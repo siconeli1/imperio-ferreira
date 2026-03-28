@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireCustomerAuth, getCustomerProfileByAuthUserId } from "@/lib/customer-auth";
-import { normalizePhone } from "@/lib/phone";
+import { isValidPhone, normalizePhone } from "@/lib/phone";
 import { supabase } from "@/lib/supabase";
 
 export async function GET(request: Request) {
@@ -23,7 +23,11 @@ export async function POST(request: Request) {
     const dataNascimento = String(body?.data_nascimento ?? "").trim();
 
     if (!nome || !telefone) {
-      return NextResponse.json({ erro: "Nome e telefone sao obrigatorios." }, { status: 400 });
+      return NextResponse.json({ erro: "Nome e telefone são obrigatórios." }, { status: 400 });
+    }
+
+    if (!isValidPhone(telefone)) {
+      return NextResponse.json({ erro: "Informe um telefone válido com DDD." }, { status: 400 });
     }
 
     const existing = await getCustomerProfileByAuthUserId(auth.authUserId);
@@ -68,11 +72,23 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const patch: Record<string, string> = {};
+    const patch: Record<string, string | null> = {};
 
     if (body?.nome) patch.nome = String(body.nome).trim();
-    if (body?.telefone) patch.telefone = normalizePhone(body.telefone);
-    if (body?.data_nascimento) patch.data_nascimento = String(body.data_nascimento).trim();
+    if (body?.telefone) {
+      const telefone = normalizePhone(body.telefone);
+      if (!isValidPhone(telefone)) {
+        return NextResponse.json({ erro: "Informe um telefone válido com DDD." }, { status: 400 });
+      }
+      patch.telefone = telefone;
+    }
+    if ("data_nascimento" in body) {
+      patch.data_nascimento = body.data_nascimento ? String(body.data_nascimento).trim() : null;
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json({ erro: "Nenhuma alteração válida foi enviada." }, { status: 400 });
+    }
 
     const { data, error } = await supabase
       .from("clientes")

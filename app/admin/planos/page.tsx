@@ -104,11 +104,7 @@ export default function AdminPlanosPage() {
   }, [busca, planoIdFiltro, vencimento, planoIdCadastro, clienteId]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void carregar();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    void carregar();
   }, [carregar]);
 
   const clientesSemPlano = useMemo(() => clientes.filter((cliente) => !cliente.plano_ativo), [clientes]);

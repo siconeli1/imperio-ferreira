@@ -39,15 +39,22 @@ function getCurrentSaoPauloParts(referenceDate = new Date()) {
   };
 }
 
-function toAbsoluteCancelMinutes(agendamento: Pick<AgendamentoRuleCandidate, "data" | "hora_inicio" | "cancelavel_ate">) {
-  if (agendamento.cancelavel_ate) {
-    const date = new Date(agendamento.cancelavel_ate);
-    return date.getTime();
-  }
-
+function toAbsoluteCancelMinutes(
+  agendamento: Pick<AgendamentoRuleCandidate, "data" | "hora_inicio" | "cancelavel_ate">,
+  referenceDate = new Date()
+) {
+  const current = getCurrentSaoPauloParts(referenceDate);
   const [year, month, day] = agendamento.data.split("-").map(Number);
   const [hour, minute] = agendamento.hora_inicio.slice(0, 5).split(":").map(Number);
-  return new Date(year, month - 1, day, hour, minute - 20).getTime();
+  const appointmentMinutes = hour * 60 + minute - 20;
+
+  const appointmentDate = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const currentDate = current.date;
+
+  if (appointmentDate < currentDate) return Number.NEGATIVE_INFINITY;
+  if (appointmentDate > currentDate) return Number.POSITIVE_INFINITY;
+
+  return appointmentMinutes;
 }
 
 export function hasAppointmentStarted(agendamento: Pick<AgendamentoRuleCandidate, "data" | "hora_inicio">, referenceDate = new Date()) {
@@ -70,7 +77,13 @@ export function canCancelAppointment(agendamento: AgendamentoRuleCandidate, refe
   if (agendamento.status === "cancelado" || agendamento.status_agendamento === "cancelado") return false;
   if (agendamento.status_agendamento === "no_show") return false;
   if (agendamento.status_atendimento === "concluido") return false;
-  return referenceDate.getTime() <= toAbsoluteCancelMinutes(agendamento);
+  const current = getCurrentSaoPauloParts(referenceDate);
+  const cancelLimit = toAbsoluteCancelMinutes(agendamento, referenceDate);
+
+  if (cancelLimit === Number.NEGATIVE_INFINITY) return false;
+  if (cancelLimit === Number.POSITIVE_INFINITY) return true;
+
+  return current.minutes <= cancelLimit;
 }
 
 export function canMarkNoShow(agendamento: AgendamentoRuleCandidate, referenceDate = new Date()) {

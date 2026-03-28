@@ -24,6 +24,7 @@ type AgendaItem = {
   servico_preco?: number;
   status_agendamento?: string;
   status_atendimento?: string;
+  status_pagamento?: string;
   tipo_cobranca?: string;
   origem?: "agendamento" | "horario_customizado";
 };
@@ -122,36 +123,33 @@ export default function AdminAgendaPage() {
   }, [barbeiroId, contextLoading, data]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void carregarContexto();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    void carregarContexto();
   }, [carregarContexto]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void carregarAgenda();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    void carregarAgenda();
   }, [carregarAgenda]);
 
   const resumo = useMemo(() => {
     const agendamentos = agenda.filter((item) => item.origem !== "horario_customizado");
-    const concluidos = agendamentos.filter((item) => item.status_atendimento === "concluido");
+    const concluidos = agendamentos.filter(
+      (item) => item.status_atendimento === "concluido" && item.status_pagamento === "pago"
+    );
     const pendentes = agendamentos.filter(
       (item) =>
-        item.status_atendimento !== "concluido" &&
-        (item.status_agendamento === "agendado" || item.status_agendamento === "confirmado")
+        item.status_agendamento !== "cancelado" &&
+        item.status_agendamento !== "no_show" &&
+        item.status_pagamento !== "pago"
     );
 
     return {
       total: agendamentos.length,
-      concluidos: concluidos.length,
+      concluidos: agendamentos.filter((item) => item.status_atendimento === "concluido").length,
       pendentes: pendentes.length,
       receitaGerada: concluidos.reduce((acc, item) => acc + Number(item.valor_final ?? 0), 0),
-      receitaEsperada: pendentes.reduce((acc, item) => acc + Number(item.valor_final ?? 0), 0) + concluidos.reduce((acc, item) => acc + Number(item.valor_final ?? 0), 0),
+      receitaEsperada:
+        pendentes.reduce((acc, item) => acc + Number(item.valor_final ?? 0), 0) +
+        concluidos.reduce((acc, item) => acc + Number(item.valor_final ?? 0), 0),
     };
   }, [agenda]);
 
@@ -209,7 +207,7 @@ export default function AdminAgendaPage() {
       <AdminPageHeading
         eyebrow="Agenda"
         title="Agenda do dia"
-        description="Veja seus atendimentos da data selecionada, acompanhe o status de cada horario e tome acoes rapidas sem sair da tela."
+        description="Veja seus atendimentos da data selecionada, acompanhe atendimento e pagamento separadamente e aja sem sair da tela."
         actions={
           <>
             <Link href="/admin/marcar" className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold hover:bg-white/10">
@@ -225,12 +223,12 @@ export default function AdminAgendaPage() {
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="grid gap-4 sm:grid-cols-4 lg:flex-1">
           <AdminMetric label="Agendados" value={String(resumo.total)} />
-          <AdminMetric label="Pendentes" value={String(resumo.pendentes)} />
+          <AdminMetric label="A receber" value={String(resumo.pendentes)} />
           <AdminMetric label="Concluidos" value={String(resumo.concluidos)} />
           <AdminMetric
             label="Receita prevista"
             value={resumo.receitaEsperada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-            note={`Gerada: ${resumo.receitaGerada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}
+            note={`Recebida: ${resumo.receitaGerada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}
           />
         </div>
 
@@ -284,14 +282,22 @@ export default function AdminAgendaPage() {
               const statusLabel = isCustom
                 ? "Reserva manual"
                 : item.status_atendimento === "concluido"
-                  ? "Concluido"
+                  ? "Concluído"
                   : item.status_agendamento === "no_show"
-                    ? "Nao compareceu"
+                    ? "Não compareceu"
                     : item.status_agendamento === "cancelado"
                       ? "Cancelado"
                       : item.status_agendamento === "confirmado"
                         ? "Confirmado"
                         : "Agendado";
+
+              const pagamentoLabel = item.status_pagamento === "pago" ? "Pago" : "Pendente";
+              const podeMarcarPago =
+                !isCustom &&
+                item.status_agendamento !== "cancelado" &&
+                item.status_agendamento !== "no_show" &&
+                item.status_atendimento === "concluido" &&
+                item.status_pagamento !== "pago";
 
               return (
                 <div key={item.id} className="rounded-[24px] border border-white/10 bg-black/20 p-5">
@@ -302,6 +308,17 @@ export default function AdminAgendaPage() {
                         <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs uppercase tracking-[0.16em] text-[var(--accent-strong)]">
                           {statusLabel}
                         </span>
+                        {!isCustom ? (
+                          <span
+                            className={`rounded-full border px-3 py-1 text-xs uppercase tracking-[0.16em] ${
+                              item.status_pagamento === "pago"
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                                : "border-amber-500/30 bg-amber-500/10 text-amber-100"
+                            }`}
+                          >
+                            {pagamentoLabel}
+                          </span>
+                        ) : null}
                         {!isCustom && item.tipo_cobranca === "plano" ? (
                           <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs uppercase tracking-[0.16em] text-emerald-200">
                             Plano
@@ -324,8 +341,13 @@ export default function AdminAgendaPage() {
                     {!isCustom ? (
                       <div className="flex flex-wrap gap-2">
                         {item.status_atendimento !== "concluido" && item.status_agendamento !== "cancelado" ? (
-                          <AdminActionButton onClick={() => atualizarAgendamento(item.id, { status_atendimento: "concluido", status_pagamento: "pago" })}>
+                          <AdminActionButton onClick={() => atualizarAgendamento(item.id, { status_atendimento: "concluido" })}>
                             Concluir
+                          </AdminActionButton>
+                        ) : null}
+                        {podeMarcarPago ? (
+                          <AdminActionButton tone="secondary" onClick={() => atualizarAgendamento(item.id, { status_pagamento: "pago" })}>
+                            Marcar como pago
                           </AdminActionButton>
                         ) : null}
                         {item.status_agendamento !== "no_show" && item.status_atendimento !== "concluido" ? (

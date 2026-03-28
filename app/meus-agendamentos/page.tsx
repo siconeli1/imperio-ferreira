@@ -82,6 +82,10 @@ export default function MeusAgendamentosPage() {
       return;
     }
 
+    if (!window.confirm("Cancelar este agendamento agora? Essa acao libera o horario para a agenda novamente.")) {
+      return;
+    }
+
     setLoading(true);
     setErro("");
     setMsg("");
@@ -125,101 +129,117 @@ export default function MeusAgendamentosPage() {
 
   return (
     <main className="min-h-screen bg-[var(--background)] text-white">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-10 border-b border-white/10 pb-10 text-center">
-          <Link href="/" className="mb-6 inline-flex items-center gap-2 text-[var(--muted)] hover:text-white">
+      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mb-10 border-b border-white/10 pb-10">
+          <Link href="/" className="inline-flex items-center gap-2 text-[var(--muted)] hover:text-white">
             Voltar
           </Link>
-          <h1 className="text-4xl font-semibold">Meus agendamentos</h1>
-          <p className="mt-3 text-lg text-[var(--muted)]">
-            Consulte seus horarios usando a mesma conta Google utilizada para reservar.
-          </p>
+          <div className="mt-6 max-w-2xl">
+            <h1 className="text-4xl font-semibold">Meus agendamentos</h1>
+            <p className="mt-3 text-lg text-[var(--muted)]">
+              Consulte, acompanhe e cancele suas reservas usando a mesma conta Google utilizada para agendar.
+            </p>
+          </div>
         </div>
 
-        {erro && <div className="mb-6 border border-red-700 bg-red-950/60 px-4 py-3 text-red-200">{erro}</div>}
-        {msg && <div className="mb-6 border border-emerald-700 bg-emerald-950/40 px-4 py-3 text-emerald-200">{msg}</div>}
+        {erro ? <div className="mb-6 border border-red-700 bg-red-950/60 px-4 py-3 text-red-200">{erro}</div> : null}
+        {msg ? <div className="mb-6 border border-emerald-700 bg-emerald-950/40 px-4 py-3 text-emerald-200">{msg}</div> : null}
 
-        {!sessionReady && <p className="text-center text-[var(--muted)]">Carregando sessao...</p>}
+        {!sessionReady ? <p className="text-center text-[var(--muted)]">Carregando sessao...</p> : null}
 
-        {sessionReady && !accessToken && (
-          <section className="border border-white/10 bg-white/[0.03] p-8 text-center">
+        {sessionReady && !accessToken ? (
+          <section className="rounded-[32px] border border-white/10 bg-white/[0.03] p-8 text-center">
             <h2 className="text-2xl font-semibold">Entre com Google para ver suas reservas</h2>
-            <p className="mt-4 text-[var(--muted)]">
-              Seus agendamentos nao sao mais buscados por celular. Eles ficam vinculados a sua conta Google.
+            <p className="mx-auto mt-4 max-w-2xl text-[var(--muted)]">
+              Seus agendamentos agora ficam vinculados a sua conta Google. Isso deixa a consulta mais segura e evita buscas por telefone.
             </p>
             <button
               type="button"
               onClick={handleGoogleLogin}
               disabled={loadingLogin}
-              className="mt-8 bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)] disabled:opacity-50"
+              className="mt-8 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)] disabled:opacity-50"
             >
               {loadingLogin ? "Redirecionando..." : "Entrar com Google"}
             </button>
           </section>
-        )}
+        ) : null}
 
-        {sessionReady && accessToken && !profile && !loading && (
-          <section className="border border-white/10 bg-white/[0.03] p-8 text-center">
-            <h2 className="text-2xl font-semibold">Conta ainda não cadastrada</h2>
-            <p className="mt-4 text-[var(--muted)]">
+        {sessionReady && accessToken && !profile && !loading ? (
+          <section className="rounded-[32px] border border-white/10 bg-white/[0.03] p-8 text-center">
+            <h2 className="text-2xl font-semibold">Conta ainda nao cadastrada</h2>
+            <p className="mx-auto mt-4 max-w-2xl text-[var(--muted)]">
               Esta conta Google ainda nao foi finalizada no sistema. Se voce nunca reservou com ela, ainda nao existem agendamentos vinculados.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link href="/login?next=/meus-agendamentos" className="bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)]">
+              <Link
+                href="/login?next=/meus-agendamentos"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)]"
+              >
                 Completar cadastro
               </Link>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="border border-white/20 px-6 py-3 font-semibold hover:bg-white/10"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 px-6 py-3 font-semibold hover:bg-white/10"
               >
                 Sair e trocar conta
               </button>
             </div>
           </section>
-        )}
+        ) : null}
 
-        {sessionReady && accessToken && profile && (
+        {sessionReady && accessToken && profile ? (
           <section className="space-y-4">
-            <div className="border border-white/10 bg-white/[0.03] p-5">
-              <p className="text-sm text-[var(--muted)]">
-                Consultando como <span className="font-semibold text-white">{profile.nome}</span>
-              </p>
+            <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-[var(--muted)]">Consultando como</p>
+                  <p className="mt-1 text-lg font-semibold text-white">{profile.nome}</p>
+                </div>
+                <Link
+                  href="/agendar"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold hover:bg-white/10"
+                >
+                  Fazer novo agendamento
+                </Link>
+              </div>
             </div>
 
-            {!profileExists && !loading && (
-              <div className="border border-white/10 bg-white/[0.03] p-8 text-center text-[var(--muted)]">
+            {!profileExists && !loading ? (
+              <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-8 text-center text-[var(--muted)]">
                 Esta conta Google ainda nao tem cadastro no sistema.
               </div>
-            )}
+            ) : null}
 
-            {loading && <p className="text-[var(--muted)]">Buscando agendamentos...</p>}
+            {loading ? <p className="text-[var(--muted)]">Buscando agendamentos...</p> : null}
 
-            {!loading && profileExists && agendamentos.length === 0 && (
-              <div className="border border-white/10 bg-white/[0.03] p-8 text-center text-[var(--muted)]">
+            {!loading && profileExists && agendamentos.length === 0 ? (
+              <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-8 text-center text-[var(--muted)]">
                 Nenhum agendamento encontrado para esta conta.
               </div>
-            )}
+            ) : null}
 
             {agendamentos.map((item) => {
               const cancelado = item.status_agendamento === "cancelado";
               const concluido = item.status_atendimento === "concluido";
+              const statusLabel = cancelado ? "Cancelado" : concluido ? "Concluido" : "Agendado";
 
               return (
-                <div key={item.id} className="border border-white/10 bg-white/[0.03] p-6">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div key={item.id} className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+                  <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="text-xl font-semibold">{formatarDataISO(item.data)}</p>
                       <p className="mt-2 text-[var(--muted)]">
-                        {formatarHora(item.hora_inicio)} - {formatarHora(item.hora_fim)}
+                        {formatarHora(item.hora_inicio)} ate {formatarHora(item.hora_fim)}
                       </p>
                       <p className="mt-4 text-white">{item.servico_nome || "Servico nao informado"}</p>
                       <p className="mt-2 text-sm text-[var(--muted)]">Barbeiro: {resolveBarbeiroNome(item)}</p>
                     </div>
+
                     <div className="text-left sm:text-right">
-                      <p className="text-sm uppercase tracking-[0.2em] text-[var(--accent-strong)]">
-                        {cancelado ? "Cancelado" : concluido ? "Concluido" : "Agendado"}
-                      </p>
+                      <span className="inline-flex rounded-full border border-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-strong)]">
+                        {statusLabel}
+                      </span>
                       <p className="mt-3 text-lg font-semibold">
                         {Number(item.valor_final ?? item.servico_preco ?? 0).toLocaleString("pt-BR", {
                           style: "currency",
@@ -229,21 +249,23 @@ export default function MeusAgendamentosPage() {
                     </div>
                   </div>
 
-                  {!cancelado && !concluido && (
-                    <button
-                      type="button"
-                      onClick={() => cancelar(item.id)}
-                      disabled={loading}
-                      className="mt-6 border border-red-500 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-950/30 disabled:opacity-50"
-                    >
-                      Cancelar agendamento
-                    </button>
-                  )}
+                  {!cancelado && !concluido ? (
+                    <div className="mt-6 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => cancelar(item.id)}
+                        disabled={loading}
+                        className="inline-flex min-h-11 items-center justify-center rounded-full border border-red-500 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-950/30 disabled:opacity-50"
+                      >
+                        Cancelar agendamento
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
           </section>
-        )}
+        ) : null}
       </div>
     </main>
   );

@@ -7,7 +7,7 @@ import {
 import { requireCustomerAuth, getCustomerProfileByAuthUserId } from "@/lib/customer-auth";
 import { buscarPlanoPorId } from "@/lib/planos";
 import { supabase } from "@/lib/supabase";
-import { syncAutoClosedAgendamentos } from "@/lib/agendamento";
+import { projectAutoClosedAgendamentos } from "@/lib/agendamento";
 
 export async function GET(request: Request) {
   try {
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 
     const plano = assinatura ? await buscarPlanoPorId(assinatura.plano_id) : null;
     const historicoUso = await listarMovimentacoesCliente(cliente.id);
-    const reservas = await syncAutoClosedAgendamentos(reservasRes.data ?? []);
+    const reservas = projectAutoClosedAgendamentos(reservasRes.data ?? []);
 
     return NextResponse.json({
       profile: cliente,

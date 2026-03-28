@@ -74,6 +74,10 @@ async function loadBarbeirosFromDatabase() {
   return (data ?? []) as Barbeiro[];
 }
 
+async function loadBarbeirosStrict() {
+  return loadBarbeirosFromDatabase();
+}
+
 export async function listActiveBarbeiros() {
   try {
     const barbeiros = await loadBarbeirosFromDatabase();
@@ -98,7 +102,7 @@ export async function findBarbeiroByLogin(login?: string | null) {
     return null;
   }
 
-  const barbeiros = await listAllBarbeiros();
+  const barbeiros = await loadBarbeirosStrict();
   return barbeiros.find((barbeiro) => barbeiro.login.toLowerCase() === normalized) ?? null;
 }
 
@@ -109,7 +113,7 @@ export async function findBarbeiroById(id?: string | null) {
     return null;
   }
 
-  const barbeiros = await listAllBarbeiros();
+  const barbeiros = await loadBarbeirosStrict();
   return barbeiros.find((barbeiro) => barbeiro.id === normalized) ?? null;
 }
 

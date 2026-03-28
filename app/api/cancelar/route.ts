@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { normalizePhone } from "@/lib/phone";
 import { canCancelAppointment } from "@/lib/agendamento-rules";
 import { supabase } from "@/lib/supabase";
 import { getAdminSession, isSocioAdmin } from "@/lib/admin-auth";
@@ -10,7 +9,6 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const id = String(body?.id ?? "");
-    const celular = normalizePhone(body?.celular);
     const adminSession = await getAdminSession();
     const customerAuth = await getCustomerAuthFromRequest(req);
 
@@ -41,13 +39,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ erro: "Nao autorizado a cancelar este agendamento" }, { status: 403 });
       }
     } else {
-      if (!celular) {
-        return NextResponse.json({ erro: "Celular obrigatorio" }, { status: 401 });
-      }
-
-      if (normalizePhone(agendamento.celular_cliente) !== celular) {
-        return NextResponse.json({ erro: "Nao autorizado a cancelar este agendamento" }, { status: 403 });
-      }
+      return NextResponse.json({ erro: "Cliente nao autenticado" }, { status: 401 });
     }
 
     if (!canCancelAppointment(agendamento)) {

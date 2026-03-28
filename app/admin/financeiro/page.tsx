@@ -41,6 +41,7 @@ type FinanceResponse = {
     valor_final: number;
     status_agendamento: string;
     status_atendimento: string;
+    status_pagamento: string;
     tipo_cobranca: string;
   }>;
 };
@@ -116,12 +117,12 @@ export default function AdminFinanceiroPage() {
 
   const resumo = snapshot?.resumo;
   const receitaPrincipal =
-    escopo === "geral" && periodo === "mes"
+    escopo === "geral"
       ? resumo?.receita_gerada_com_planos ?? 0
       : resumo?.receita_gerada ?? 0;
 
   const receitaEsperada =
-    escopo === "geral" && periodo === "mes"
+    escopo === "geral"
       ? resumo?.receita_esperada_com_planos ?? 0
       : resumo?.receita_esperada ?? 0;
 
@@ -130,7 +131,7 @@ export default function AdminFinanceiroPage() {
       <AdminPageHeading
         eyebrow="Financeiro"
         title="Financeiro da agenda"
-        description="Acompanhe o que ja foi gerado pelos atendimentos concluidos e o que ainda esta previsto pelos horarios pendentes."
+        description="Acompanhe o que já foi recebido, o que ainda está em aberto e o peso dos planos no período."
       />
 
       <div className="mb-6 flex flex-col gap-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-5 lg:flex-row lg:items-end lg:justify-between">
@@ -182,17 +183,17 @@ export default function AdminFinanceiroPage() {
             <AdminMetric
               label="Receita esperada"
               value={receitaEsperada.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-              note="Gerada mais horarios ainda pendentes"
+              note="Recebido mais atendimentos ainda não pagos"
             />
             <AdminMetric label="Concluidos" value={String(resumo?.concluidos ?? 0)} />
             <AdminMetric label="Pendentes" value={String(resumo?.pendentes ?? 0)} />
             <AdminMetric label="Faltas" value={String(resumo?.faltas ?? 0)} />
           </div>
 
-          {escopo === "geral" && periodo === "mes" ? (
+          {escopo === "geral" && (resumo?.receita_planos ?? 0) > 0 ? (
             <div className="mb-6">
               <AdminNotice>
-                Planos no mes: {(resumo?.receita_planos ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}. Nesta visao mensal geral, esse valor ja entra na receita principal.
+                Planos no período: {(resumo?.receita_planos ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}. Na visão geral, esse valor já entra na receita principal.
               </AdminNotice>
             </div>
           ) : null}
@@ -246,7 +247,7 @@ export default function AdminFinanceiroPage() {
                         {item.data} - {item.status_atendimento === "concluido" ? "Concluido" : item.status_agendamento}
                       </p>
                       <p className="mt-1 text-sm text-[var(--muted)]">
-                        Cobranca: {item.tipo_cobranca === "plano" ? "de graca / plano" : item.tipo_cobranca}
+                        Cobrança: {item.tipo_cobranca === "plano" ? "plano" : item.tipo_cobranca} - pagamento {item.status_pagamento}
                       </p>
                     </div>
                   ))}
