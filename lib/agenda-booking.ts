@@ -9,6 +9,9 @@ import {
 } from "@/lib/agenda";
 import { getBusyIntervals, overlaps } from "@/lib/agenda-conflicts";
 import { listActiveBarbeiros } from "@/lib/barbeiros";
+import { isDateBeyondLimitInTimezone, isDateInPastInTimezone } from "@/lib/date";
+
+export const CUSTOMER_BOOKING_MAX_DAYS_AHEAD = 30;
 
 export type AvailableSlot = {
   hora_inicio: string;
@@ -19,6 +22,10 @@ export type AvailableSlot = {
 type SlotValidationResult =
   | { ok: false; erro: string }
   | { ok: true; day: number; inicioReserva: number; fimReserva: number };
+
+type DateValidationResult =
+  | { ok: false; erro: string }
+  | { ok: true };
 
 function buildFreeSlots(data: string, day: number, duration: number, busyState: Awaited<ReturnType<typeof getBusyIntervals>>) {
   if (busyState.bloqueioDiaInteiro || busyState.naoAceitarMais) {
@@ -105,6 +112,18 @@ export async function getAvailableSlots(params: {
     horarios: reduceVisibleSlots(completos),
     horarios_completos: completos,
   };
+}
+
+export function validateCustomerBookingDate(data: string): DateValidationResult {
+  if (isDateInPastInTimezone(data, AGENDA_CONFIG.timezone)) {
+    return { ok: false, erro: "Nao e possivel agendar em uma data passada." };
+  }
+
+  if (isDateBeyondLimitInTimezone(data, CUSTOMER_BOOKING_MAX_DAYS_AHEAD, AGENDA_CONFIG.timezone)) {
+    return { ok: false, erro: `Escolha uma data em ate ${CUSTOMER_BOOKING_MAX_DAYS_AHEAD} dias.` };
+  }
+
+  return { ok: true };
 }
 
 export function validateBusinessSlot(

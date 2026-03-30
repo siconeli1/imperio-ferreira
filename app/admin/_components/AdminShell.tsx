@@ -97,30 +97,30 @@ export function AdminShell({ children }: AdminShellProps) {
   return (
     <div className="min-h-screen bg-[var(--background)] text-white">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[rgba(4,7,6,0.92)] backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-3">
-                <Link href="/admin" className="text-lg font-semibold uppercase tracking-[0.26em] text-white">
+                <Link href="/admin" className="text-base font-semibold uppercase tracking-[0.24em] text-white sm:text-lg">
                   Imperio Ferreira
                 </Link>
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs uppercase tracking-[0.18em] text-[var(--accent-strong)]">
                   Painel administrativo
                 </span>
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--muted)]">
+              <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
                 <span>{loading ? "Carregando painel..." : `${barbeiro?.nome ?? "Barbeiro"} - @${barbeiro?.login ?? "-"}`}</span>
                 {!loading && barbeiro ? (
                   <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs uppercase tracking-[0.16em] text-[var(--accent-strong)]">
                     {barbeiro.cargo === "socio" ? "Socio" : "Barbeiro"}
                   </span>
                 ) : null}
-                <span className="hidden sm:inline">Agenda, bloqueios, clientes, financeiro e planos em um unico menu.</span>
+                <span className="hidden lg:inline">Agenda, bloqueios, clientes, financeiro e planos em um unico menu.</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-[var(--muted)]">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs uppercase tracking-[0.14em] text-[var(--muted)] sm:px-4 sm:text-sm sm:normal-case sm:tracking-normal">
                 {activeItem.label}
               </div>
               <button
@@ -134,7 +134,7 @@ export function AdminShell({ children }: AdminShellProps) {
             </div>
           </div>
 
-          <nav className="mt-4 overflow-x-auto pb-1">
+          <nav className="mt-3 overflow-x-auto pb-1">
             <div className="flex min-w-max gap-2">
               {MENU_ITEMS.map((item) => {
                 const active = isItemActive(pathname || "", item.match);

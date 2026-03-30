@@ -2,7 +2,6 @@
 import {
   buscarAssinaturaAtiva,
   listarMovimentacoesCliente,
-  sincronizarAssinaturas,
 } from "@/lib/assinaturas";
 import { requireCustomerAuth, getCustomerProfileByAuthUserId } from "@/lib/customer-auth";
 import { buscarPlanoPorId } from "@/lib/planos";
@@ -11,8 +10,6 @@ import { projectAutoClosedAgendamentos } from "@/lib/agendamento";
 
 export async function GET(request: Request) {
   try {
-    await sincronizarAssinaturas();
-
     const auth = await requireCustomerAuth(request);
     const cliente = await getCustomerProfileByAuthUserId(auth.authUserId);
 

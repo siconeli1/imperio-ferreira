@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getAvailableSlots } from "@/lib/agenda-booking";
+import { getAvailableSlots, validateCustomerBookingDate } from "@/lib/agenda-booking";
 import { encontrarServicoAtivo, encontrarServicosAtivosPorIds } from "@/lib/servicos";
+import { findBarbeiroById } from "@/lib/barbeiros";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -14,6 +15,18 @@ export async function GET(req: Request) {
 
   if (!data) {
     return NextResponse.json({ erro: "Informe ?data=YYYY-MM-DD" }, { status: 400 });
+  }
+
+  const dateValidation = validateCustomerBookingDate(data);
+  if (!dateValidation.ok) {
+    return NextResponse.json({ erro: dateValidation.erro }, { status: 409 });
+  }
+
+  if (barbeiroId) {
+    const barbeiro = await findBarbeiroById(barbeiroId);
+    if (!barbeiro || !barbeiro.ativo) {
+      return NextResponse.json({ erro: "Barbeiro nao encontrado ou inativo" }, { status: 404 });
+    }
   }
 
   let duracaoTotal = 0;

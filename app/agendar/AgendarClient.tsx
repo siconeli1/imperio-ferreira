@@ -75,6 +75,11 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
     if (!horarioSelecionado) return 3;
     return 4;
   }, [data, horarioSelecionado, isClosedDay, outOfRange, pastDate, servicoSelecionado]);
+  const resumoSelecionado = Boolean(servicoSelecionado || data || horarioSelecionado);
+  const resumoCobertura =
+    slotSelecionado && barbeiroId === "qualquer"
+      ? `${slotSelecionado.barbeiros_disponiveis.length} barbeiro(s) livre(s)`
+      : barbeiroEscolhido?.nome ?? null;
 
   useEffect(() => {
     async function buscarHorarios() {
@@ -296,14 +301,20 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
   return (
     <main className="min-h-screen bg-[var(--background)] text-white">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-        <div className="mb-12 border-b border-white/10 pb-10 text-center">
+        <div className="mb-10 rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(0,0,0,0.18))] px-5 py-8 text-center sm:px-8 sm:py-10">
           <Link href="/" className="mb-6 inline-flex items-center gap-2 text-[var(--muted)] hover:text-white">
             Voltar
           </Link>
-          <h1 className="text-4xl font-semibold">Agendamento online</h1>
-          <p className="mt-3 text-lg text-[var(--muted)]">
-            Entre com Google, finalize seu cadastro uma unica vez e siga para a reserva sem perder contexto.
+          <p className="text-xs uppercase tracking-[0.28em] text-[var(--accent-strong)]">Agendamento online</p>
+          <h1 className="mt-4 text-4xl font-semibold sm:text-5xl">Reserve seu horario sem perder tempo.</h1>
+          <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-[var(--muted)] sm:text-lg">
+            Escolha servico, data e horario primeiro. O login entra apenas na confirmacao para deixar a jornada do cliente simples e direta.
           </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2 text-xs uppercase tracking-[0.16em] text-[var(--accent-strong)]">
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2">Escolha rapida</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2">Conta unificada</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2">Confirmacao sem retrabalho</span>
+          </div>
         </div>
 
         {erro && <Banner tone="danger">{erro}</Banner>}
@@ -313,8 +324,8 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
 
         {sessionReady && (
           <>
-            <div className="mb-8 flex flex-wrap items-center justify-center gap-4 text-sm">
-              {["Servico", "Data", "Horario", "Confirmacao"].map((item, index) => (
+            <div className="mb-8 flex flex-wrap items-center justify-center gap-3 text-xs sm:gap-4 sm:text-sm">
+              {["Servico", "Data", "Hora", "Confirmar"].map((item, index) => (
                 <div key={item} className="flex items-center gap-3">
                   <div
                     className={`flex h-8 w-8 items-center justify-center rounded-full font-semibold ${
@@ -330,7 +341,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
 
             <div className="grid gap-8 lg:grid-cols-[1.12fr_0.88fr]">
               <section className="space-y-8">
-                <Card title="1. Escolha o servico">
+                <Card title="1. Escolha o servico" description="Selecione o atendimento desejado. A interface destaca o servico ativo para evitar erro de escolha.">
                   <div className="grid gap-3 sm:grid-cols-2">
                     {initialServicos.map((servico) => {
                       const ativo = servico.id === servicoId;
@@ -339,15 +350,20 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                           key={servico.id}
                           type="button"
                           onClick={() => setServicoId(servico.id)}
-                          className={`border p-4 text-left ${
+                          className={`rounded-[24px] border p-4 text-left ${
                             ativo
-                              ? "border-[var(--accent)] bg-[var(--accent)] text-black"
-                              : "border-white/10 bg-white/[0.03] hover:border-white/30"
+                              ? "border-[var(--accent)] bg-[linear-gradient(180deg,var(--accent),var(--accent-strong))] text-black shadow-[0_16px_30px_rgba(210,169,95,0.18)]"
+                              : "border-white/10 bg-white/[0.03] hover:border-white/30 hover:bg-white/[0.05]"
                           }`}
                         >
-                          <p className="font-semibold">{servico.nome}</p>
-                          <p className={`mt-2 text-sm ${ativo ? "text-black/70" : "text-[var(--muted)]"}`}>
-                            {servico.duracao_minutos} min - {formatarPreco(Number(servico.preco))}
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="font-semibold">{servico.nome}</p>
+                            <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${ativo ? "bg-black/10 text-black/75" : "border border-white/10 bg-black/20 text-[var(--accent-strong)]"}`}>
+                              {servico.duracao_minutos} min
+                            </span>
+                          </div>
+                          <p className={`mt-3 text-sm ${ativo ? "text-black/70" : "text-[var(--muted)]"}`}>
+                            {formatarPreco(Number(servico.preco))}
                           </p>
                         </button>
                       );
@@ -355,8 +371,8 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                   </div>
                 </Card>
 
-                <Card title="2. Data e profissional">
-                  <div className="grid gap-4 sm:grid-cols-2">
+                <Card title="2. Data e profissional" description="Escolha a data e decida se quer um profissional especifico ou o primeiro barbeiro livre no horario.">
+                  <div className="grid gap-5">
                     <input
                       type="date"
                       value={data}
@@ -364,20 +380,40 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                       min={getTodayInputValue()}
                       className="datetime-input rounded-xl border px-4 py-3"
                     />
-                    <select
-                      value={barbeiroId}
-                      onChange={(event) => setBarbeiroId(event.target.value)}
-                      className="rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white"
-                    >
-                      <option value="qualquer">Qualquer um disponivel</option>
-                      {initialBarbeiros.map((barbeiro) => (
-                        <option key={barbeiro.id} value={barbeiro.id}>
-                          {barbeiro.nome}
-                        </option>
-                      ))}
-                    </select>
+
+                    <div className="space-y-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.18em] text-[var(--accent-strong)]">Profissional</p>
+                          <p className="mt-1 text-sm text-[var(--muted)]">Escolha um barbeiro especifico ou deixe a agenda selecionar o primeiro disponivel.</p>
+                        </div>
+                        <div className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">
+                          {barbeiroId === "qualquer" ? "Escolha flexivel" : "Escolha personalizada"}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <ProfissionalOptionCard
+                          title="Qualquer um disponivel"
+                          subtitle="Mais flexivel para encontrar horario rapido."
+                          selected={barbeiroId === "qualquer"}
+                          badge="Recomendado"
+                          onClick={() => setBarbeiroId("qualquer")}
+                        />
+
+                        {initialBarbeiros.map((barbeiro) => (
+                          <ProfissionalOptionCard
+                            key={barbeiro.id}
+                            title={barbeiro.nome}
+                            subtitle="Selecionar este profissional na confirmacao."
+                            selected={barbeiroId === barbeiro.id}
+                            onClick={() => setBarbeiroId(barbeiro.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <p className="mt-4 text-sm text-[var(--muted)]">
+                  <p className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-[var(--muted)]">
                     {pastDate && "A data escolhida esta no passado."}
                     {outOfRange && " A data esta fora da janela de 30 dias."}
                     {isClosedDay && " A barbearia nao atende aos domingos."}
@@ -388,18 +424,18 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                   </p>
                 </Card>
 
-                <Card title="3. Horarios disponiveis">
+                <Card title="3. Horarios disponiveis" description="Mostramos apenas horarios que realmente respeitam funcionamento e disponibilidade da agenda.">
                   {loadingHorarios && <p className="text-[var(--muted)]">Carregando horarios...</p>}
                   {!loadingHorarios && todosHorarios.length === 0 && data && servicoSelecionado && !pastDate && !outOfRange && !isClosedDay && (
                     <p className="text-[var(--muted)]">Nenhum horario encontrado para este servico nesta data.</p>
                   )}
-                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                     {horariosVisiveis.map((slot) => (
                       <button
                         key={slot.hora_inicio}
                         type="button"
                         onClick={() => setHorarioSelecionado(slot.hora_inicio)}
-                        className={`border px-3 py-3 text-sm font-medium ${
+                        className={`rounded-2xl border px-3 py-3 text-sm font-medium ${
                           horarioSelecionado === slot.hora_inicio
                             ? "border-[var(--accent)] bg-[var(--accent)] text-black"
                             : "border-white/15 bg-white/[0.03] hover:border-white/35"
@@ -413,7 +449,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                     <button
                       type="button"
                       onClick={() => setShowAllHorarios(true)}
-                      className="mt-4 border border-white/20 px-4 py-2 text-sm font-semibold hover:bg-white/10"
+                      className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm font-semibold hover:bg-white/10"
                     >
                       Ver mais horarios
                     </button>
@@ -426,32 +462,29 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                 </Card>
               </section>
 
-              <aside className="h-fit border border-white/10 bg-white/[0.03] p-6 lg:sticky lg:top-8">
+              <aside className="h-fit rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.18))] p-5 sm:p-6 lg:sticky lg:top-6">
                 <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Resumo do agendamento</p>
-                <div className="mt-6 space-y-4 text-sm">
-                  <ResumoItem label="Cliente" value={profile?.nome ?? "Entrar com Google"} />
-                  <ResumoItem label="Servico" value={servicoSelecionado?.nome ?? "-"} />
-                  <ResumoItem
-                    label="Duracao"
-                    value={servicoSelecionado ? `${servicoSelecionado.duracao_minutos} min` : "-"}
-                  />
-                  <ResumoItem
-                    label="Valor"
-                    value={servicoSelecionado ? formatarPreco(Number(servicoSelecionado.preco)) : "-"}
-                  />
-                  <ResumoItem label="Barbeiro" value={barbeiroEscolhido?.nome ?? "Qualquer um disponivel"} />
-                  <ResumoItem label="Data" value={data ? formatarDataResumo(data) : "-"} />
-                  <ResumoItem label="Inicio" value={horarioSelecionado || "-"} />
-                  <ResumoItem label="Fim" value={slotSelecionado?.hora_fim ?? "-"} />
-                  <ResumoItem
-                    label="Cobertura"
-                    value={
-                      slotSelecionado && barbeiroId === "qualquer"
-                        ? `${slotSelecionado.barbeiros_disponiveis.length} barbeiro(s) livre(s)`
-                        : barbeiroEscolhido?.nome ?? "-"
-                    }
-                  />
-                </div>
+                <h2 className="mt-4 text-2xl font-semibold">Revise antes de confirmar</h2>
+
+                {!resumoSelecionado ? (
+                  <div className="mt-5 space-y-3">
+                    <ResumoHint titulo="Escolha o servico" texto="Comece pelo atendimento que deseja fazer." />
+                    <ResumoHint titulo="Defina a data" texto="O sistema libera apenas datas dentro da janela valida." />
+                    <ResumoHint titulo="Selecione o horario" texto="Depois disso, a confirmacao fica pronta no mesmo painel." />
+                  </div>
+                ) : (
+                  <div className="mt-5 grid gap-3">
+                    {servicoSelecionado ? <ResumoPill label="Servico" value={servicoSelecionado.nome} /> : null}
+                    {servicoSelecionado ? <ResumoPill label="Duracao" value={`${servicoSelecionado.duracao_minutos} min`} /> : null}
+                    {servicoSelecionado ? <ResumoPill label="Valor" value={formatarPreco(Number(servicoSelecionado.preco))} /> : null}
+                    {data ? <ResumoPill label="Data" value={formatarDataResumo(data)} /> : null}
+                    {horarioSelecionado ? <ResumoPill label="Inicio" value={horarioSelecionado} /> : null}
+                    {slotSelecionado?.hora_fim ? <ResumoPill label="Fim" value={slotSelecionado.hora_fim} /> : null}
+                    <ResumoPill label="Barbeiro" value={barbeiroEscolhido?.nome ?? "Qualquer um disponivel"} />
+                    {resumoCobertura ? <ResumoPill label="Cobertura" value={resumoCobertura} /> : null}
+                    {profile?.nome ? <ResumoPill label="Cliente" value={profile.nome} /> : null}
+                  </div>
+                )}
 
                 {!accessToken && (
                   <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -463,7 +496,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                       type="button"
                       onClick={handleGoogleLogin}
                       disabled={loadingLogin}
-                      className="mt-4 inline-flex w-full items-center justify-center bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)] disabled:opacity-50"
+                      className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)] disabled:opacity-50"
                     >
                       {loadingLogin ? "Redirecionando..." : "Entrar com Google"}
                     </button>
@@ -482,7 +515,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                     <button
                       type="button"
                       onClick={handleLogout}
-                      className="inline-flex w-full items-center justify-center border border-white/20 px-6 py-3 font-semibold hover:bg-white/10"
+                      className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/20 px-6 py-3 font-semibold hover:bg-white/10"
                     >
                       Sair e trocar conta
                     </button>
@@ -502,7 +535,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                       type="button"
                       onClick={() => reservar(false)}
                       disabled={!servicoSelecionado || !data || !horarioSelecionado || loadingReserva}
-                      className="mt-8 inline-flex w-full items-center justify-center bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="mt-8 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[var(--accent)] px-6 py-3 font-semibold text-black hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {loadingReserva ? "Confirmando..." : "Confirmar agendamento"}
                     </button>
@@ -512,7 +545,7 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
                         type="button"
                         onClick={() => reservar(true)}
                         disabled={loadingReserva}
-                        className="mt-3 inline-flex w-full items-center justify-center border border-white/20 px-6 py-3 font-semibold hover:bg-white/10"
+                        className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-full border border-white/20 px-6 py-3 font-semibold hover:bg-white/10"
                       >
                         Confirmar como servico avulso
                       </button>
@@ -528,12 +561,68 @@ export default function AgendarClient({ initialServicos, initialBarbeiros, initi
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="border border-white/10 bg-white/[0.03] p-6">
+    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.16))] p-5 sm:p-6">
       <h2 className="text-xl font-semibold">{title}</h2>
+      {description ? <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{description}</p> : null}
       <div className="mt-5">{children}</div>
     </section>
+  );
+}
+
+function ProfissionalOptionCard({
+  title,
+  subtitle,
+  selected,
+  badge,
+  onClick,
+}: {
+  title: string;
+  subtitle: string;
+  selected: boolean;
+  badge?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-[24px] border p-4 text-left transition ${
+        selected
+          ? "border-[var(--accent)] bg-[linear-gradient(180deg,rgba(210,169,95,0.22),rgba(210,169,95,0.12))] shadow-[0_14px_28px_rgba(210,169,95,0.12)]"
+          : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.05]"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className={`font-semibold ${selected ? "text-white" : "text-white"}`}>{title}</p>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{subtitle}</p>
+        </div>
+        {badge ? (
+          <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${selected ? "bg-black/15 text-[var(--background)]" : "border border-white/10 bg-black/20 text-[var(--accent-strong)]"}`}>
+            {badge}
+          </span>
+        ) : null}
+      </div>
+    </button>
+  );
+}
+
+function ResumoPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+      <p className="text-[11px] uppercase tracking-[0.16em] text-[var(--muted)]">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-white">{value}</p>
+    </div>
   );
 }
 
@@ -546,10 +635,19 @@ function ResumoItem({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ResumoHint({ titulo, texto }: { titulo: string; texto: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+      <p className="font-semibold text-white">{titulo}</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{texto}</p>
+    </div>
+  );
+}
+
 function Banner({ tone, children }: { tone: "danger" | "success"; children: React.ReactNode }) {
   return (
     <div
-      className={`mb-6 border px-4 py-3 ${
+      className={`mb-6 rounded-2xl border px-4 py-3 ${
         tone === "danger"
           ? "border-red-700 bg-red-950/60 text-red-200"
           : "border-emerald-700 bg-emerald-950/40 text-emerald-200"

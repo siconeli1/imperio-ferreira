@@ -70,12 +70,26 @@ export async function POST(req: Request) {
     const fim = parseTimeToMinutes(hora_fim);
 
     const busyState = await getBusyIntervals(data, targetBarbeiroId);
-    const hasConflict = busyState.intervalos
-      .filter((intervalo) => intervalo.tipo === "agendamento" || intervalo.tipo === "horario_customizado")
-      .some((intervalo) => overlaps(inicio, fim, intervalo.inicio, intervalo.fim));
+    if (busyState.bloqueioDiaInteiro) {
+      return NextResponse.json({ erro: "Existe um bloqueio de dia inteiro nessa data." }, { status: 409 });
+    }
 
-    if (hasConflict) {
-      return NextResponse.json({ erro: "Existe conflito com outro agendamento ou horario personalizado." }, { status: 409 });
+    if (busyState.naoAceitarMais) {
+      return NextResponse.json({ erro: "Essa data esta marcada para nao aceitar novos horarios." }, { status: 409 });
+    }
+
+    const conflito = busyState.intervalos.find((intervalo) =>
+      overlaps(inicio, fim, intervalo.inicio, intervalo.fim)
+    );
+
+    if (conflito) {
+      const erroConflito =
+        conflito.tipo === "agendamento"
+          ? "Existe conflito com um agendamento existente."
+          : conflito.tipo === "horario_customizado"
+            ? "Existe conflito com outro horario personalizado."
+            : "Existe conflito com um bloqueio da agenda.";
+      return NextResponse.json({ erro: erroConflito }, { status: 409 });
     }
 
     const { data: horario, error } = await supabase

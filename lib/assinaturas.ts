@@ -1,5 +1,6 @@
 ﻿import { supabase } from "@/lib/supabase";
 import type { Plano } from "@/lib/planos";
+import { buscarPlanoPorId } from "@/lib/planos";
 
 export type AssinaturaAtiva = {
   id: string;
@@ -88,9 +89,136 @@ function getTodaySaoPauloIso(referenceDate = new Date()) {
   return formatter.format(referenceDate);
 }
 
-export async function buscarAssinaturaAtiva(clienteId: string) {
-  await sincronizarAssinaturas();
+function isIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
 
+function assertValidCycleRange(inicioCiclo: string, fimCiclo: string) {
+  if (!isIsoDate(inicioCiclo) || !isIsoDate(fimCiclo)) {
+    throw new Error("Datas do ciclo devem estar no formato YYYY-MM-DD.");
+  }
+
+  if (fimCiclo < inicioCiclo) {
+    throw new Error("fim_ciclo nao pode ser anterior ao inicio_ciclo.");
+  }
+}
+
+function getReservedSummary(
+  assinatura: Pick<AssinaturaAtiva, "cortes_reservados" | "barbas_reservadas" | "sobrancelhas_reservadas">
+) {
+  const cortes = Number(assinatura.cortes_reservados ?? 0);
+  const barbas = Number(assinatura.barbas_reservadas ?? 0);
+  const sobrancelhas = Number(assinatura.sobrancelhas_reservadas ?? 0);
+
+  return {
+    cortes,
+    barbas,
+    sobrancelhas,
+    total: cortes + barbas + sobrancelhas,
+  };
+}
+
+function buildCyclePatchFromPlano(
+  assinatura: Pick<AssinaturaAtiva, "cortes_reservados" | "barbas_reservadas" | "sobrancelhas_reservadas">,
+  plano: Plano,
+  inicioCiclo: string,
+  fimCiclo: string
+) {
+  const reservados = getReservedSummary(assinatura);
+  const cortesTotais = Math.max(plano.cortes_incluidos, reservados.cortes);
+  const barbasTotais = Math.max(plano.barbas_incluidas, reservados.barbas);
+  const sobrancelhasTotais = Math.max(plano.sobrancelhas_incluidas, reservados.sobrancelhas);
+
+  return {
+    inicio_ciclo: inicioCiclo,
+    fim_ciclo: fimCiclo,
+    proxima_renovacao: fimCiclo,
+    cortes_totais: cortesTotais,
+    cortes_restantes: Math.max(0, cortesTotais - reservados.cortes),
+    cortes_reservados: reservados.cortes,
+    barbas_totais: barbasTotais,
+    barbas_restantes: Math.max(0, barbasTotais - reservados.barbas),
+    barbas_reservadas: reservados.barbas,
+    sobrancelhas_totais: sobrancelhasTotais,
+    sobrancelhas_restantes: Math.max(0, sobrancelhasTotais - reservados.sobrancelhas),
+    sobrancelhas_reservadas: reservados.sobrancelhas,
+  };
+}
+
+type AssinaturaPeriodoBase = Pick<
+  AssinaturaAtiva,
+  "status" | "tipo_renovacao" | "inicio_ciclo" | "fim_ciclo" | "proxima_renovacao"
+>;
+
+export function projectAssinaturaPeriodo<T extends AssinaturaPeriodoBase>(assinatura: T, referenceDate = new Date()) {
+  const hoje = getTodaySaoPauloIso(referenceDate);
+
+  if (assinatura.status !== "ativo") {
+    return null;
+  }
+
+  if (assinatura.tipo_renovacao === "manual" && assinatura.fim_ciclo < hoje) {
+    return null;
+  }
+
+  let projected = { ...assinatura };
+
+  while (projected.tipo_renovacao === "automatica" && projected.fim_ciclo < hoje) {
+    const duracaoCiclo = diffDaysInclusive(projected.inicio_ciclo, projected.fim_ciclo);
+    const novoInicio = addDays(projected.fim_ciclo, 1);
+    const novoFim = addDays(novoInicio, duracaoCiclo - 1);
+    projected = {
+      ...projected,
+      inicio_ciclo: novoInicio,
+      fim_ciclo: novoFim,
+      proxima_renovacao: novoFim,
+    };
+  }
+
+  return projected;
+}
+
+async function projectAssinaturaAtivaForRead(assinatura: AssinaturaAtiva, referenceDate = new Date()) {
+  const periodoAtual = projectAssinaturaPeriodo(assinatura, referenceDate);
+
+  if (!periodoAtual) {
+    return null;
+  }
+
+  if (
+    periodoAtual.inicio_ciclo === assinatura.inicio_ciclo &&
+    periodoAtual.fim_ciclo === assinatura.fim_ciclo &&
+    periodoAtual.proxima_renovacao === assinatura.proxima_renovacao
+  ) {
+    return assinatura;
+  }
+
+  const plano = await buscarPlanoPorId(assinatura.plano_id);
+  if (!plano) {
+    return {
+      ...assinatura,
+      ...periodoAtual,
+    };
+  }
+
+  let projected = { ...assinatura };
+  const hoje = getTodaySaoPauloIso(referenceDate);
+
+  while (projected.tipo_renovacao === "automatica" && projected.fim_ciclo < hoje) {
+    const duracaoCiclo = diffDaysInclusive(projected.inicio_ciclo, projected.fim_ciclo);
+    const novoInicio = addDays(projected.fim_ciclo, 1);
+    const novoFim = addDays(novoInicio, duracaoCiclo - 1);
+    projected = {
+      ...projected,
+      status: "ativo",
+      ...buildCyclePatchFromPlano(projected, plano, novoInicio, novoFim),
+    };
+  }
+
+  return projected;
+}
+
+export async function buscarAssinaturaAtiva(clienteId: string) {
   const { data, error } = await supabase
     .from("assinaturas")
     .select("*")
@@ -102,7 +230,11 @@ export async function buscarAssinaturaAtiva(clienteId: string) {
     throw new Error(error.message);
   }
 
-  return data as AssinaturaAtiva | null;
+  if (!data) {
+    return null;
+  }
+
+  return projectAssinaturaAtivaForRead(data as AssinaturaAtiva);
 }
 
 export async function buscarAssinaturaPorId(assinaturaId: string) {
@@ -172,8 +304,6 @@ async function registrarMovimentacaoAssinatura(params: {
 }
 
 export async function sincronizarAssinaturas(referenceDate = new Date()) {
-  const hoje = getTodaySaoPauloIso(referenceDate);
-
   const { data, error } = await supabase
     .from("assinaturas")
     .select("*")
@@ -187,7 +317,9 @@ export async function sincronizarAssinaturas(referenceDate = new Date()) {
   const assinaturas = (data ?? []) as AssinaturaAtiva[];
 
   for (const assinatura of assinaturas) {
-    if (assinatura.tipo_renovacao === "manual" && assinatura.fim_ciclo < hoje) {
+    const periodoAtual = projectAssinaturaPeriodo(assinatura, referenceDate);
+
+    if (!periodoAtual) {
       const { error: updateError } = await supabase
         .from("assinaturas")
         .update({ status: "expirado" })
@@ -199,7 +331,11 @@ export async function sincronizarAssinaturas(referenceDate = new Date()) {
       continue;
     }
 
-    if (assinatura.tipo_renovacao === "automatica" && assinatura.fim_ciclo < hoje) {
+    if (
+      periodoAtual.inicio_ciclo !== assinatura.inicio_ciclo ||
+      periodoAtual.fim_ciclo !== assinatura.fim_ciclo ||
+      periodoAtual.proxima_renovacao !== assinatura.proxima_renovacao
+    ) {
       const { data: plano, error: planoError } = await supabase
         .from("planos")
         .select("*")
@@ -210,26 +346,16 @@ export async function sincronizarAssinaturas(referenceDate = new Date()) {
         throw new Error(planoError?.message || "Plano da assinatura nao encontrado.");
       }
 
-      const duracaoCiclo = diffDaysInclusive(assinatura.inicio_ciclo, assinatura.fim_ciclo);
-      const novoInicio = addDays(assinatura.fim_ciclo, 1);
-      const novoFim = addDays(novoInicio, duracaoCiclo - 1);
-
       const { error: updateError } = await supabase
         .from("assinaturas")
         .update({
           status: "ativo",
-          inicio_ciclo: novoInicio,
-          fim_ciclo: novoFim,
-          proxima_renovacao: novoFim,
-          cortes_totais: plano.cortes_incluidos,
-          cortes_restantes: plano.cortes_incluidos,
-          cortes_reservados: 0,
-          barbas_totais: plano.barbas_incluidas,
-          barbas_restantes: plano.barbas_incluidas,
-          barbas_reservadas: 0,
-          sobrancelhas_totais: plano.sobrancelhas_incluidas,
-          sobrancelhas_restantes: plano.sobrancelhas_incluidas,
-          sobrancelhas_reservadas: 0,
+          ...buildCyclePatchFromPlano(
+            assinatura,
+            plano as Plano,
+            periodoAtual.inicio_ciclo,
+            periodoAtual.fim_ciclo
+          ),
         })
         .eq("id", assinatura.id);
 
@@ -241,15 +367,13 @@ export async function sincronizarAssinaturas(referenceDate = new Date()) {
         assinaturaId: assinatura.id,
         clienteId: assinatura.cliente_id,
         tipoMovimentacao: "renovacao",
-        observacao: `Renovacao automatica do plano ${plano.nome} para o ciclo ${novoInicio} ate ${novoFim}`,
+        observacao: `Renovacao automatica do plano ${plano.nome} para o ciclo ${periodoAtual.inicio_ciclo} ate ${periodoAtual.fim_ciclo}`,
       });
     }
   }
 }
 
 export async function listarNotificacoesAssinatura(referenceDate = new Date()) {
-  await sincronizarAssinaturas(referenceDate);
-
   const hoje = getTodaySaoPauloIso(referenceDate);
   const proximos3 = addDays(hoje, 3);
 
@@ -257,31 +381,29 @@ export async function listarNotificacoesAssinatura(referenceDate = new Date()) {
     .from("assinaturas")
     .select("id, cliente_id, plano_id, status, tipo_renovacao, inicio_ciclo, fim_ciclo, proxima_renovacao, ultimo_alerta_vencimento_em, clientes(nome, telefone)")
     .eq("status", "ativo")
-    .lte("proxima_renovacao", proximos3)
     .order("proxima_renovacao", { ascending: true });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  const notificacoes = ((data ?? []) as unknown as AssinaturaNotificacao[]).map((item) => ({
-    ...item,
-    clientes: Array.isArray(item.clientes) ? (item.clientes[0] ?? null) : (item.clientes ?? null),
-  }));
-  const vencendoHoje = notificacoes.filter((item) => item.proxima_renovacao === hoje);
-
-  for (const item of vencendoHoje) {
-    if (item.ultimo_alerta_vencimento_em !== hoje) {
-      const { error: updateError } = await supabase
-        .from("assinaturas")
-        .update({ ultimo_alerta_vencimento_em: hoje })
-        .eq("id", item.id);
-
-      if (updateError) {
-        throw new Error(updateError.message);
+  const notificacoes = ((data ?? []) as unknown as AssinaturaNotificacao[])
+    .map((item) => {
+      const periodoAtual = projectAssinaturaPeriodo(item, referenceDate);
+      if (!periodoAtual) {
+        return null;
       }
-    }
-  }
+
+      return {
+        ...item,
+        ...periodoAtual,
+        clientes: Array.isArray(item.clientes) ? (item.clientes[0] ?? null) : (item.clientes ?? null),
+      };
+    })
+    .filter((item): item is AssinaturaNotificacao & { clientes: ClienteNotificacao } => Boolean(item))
+    .filter((item) => item.proxima_renovacao <= proximos3)
+    .sort((a, b) => a.proxima_renovacao.localeCompare(b.proxima_renovacao));
+  const vencendoHoje = notificacoes.filter((item) => item.proxima_renovacao === hoje);
 
   return {
     hoje,
@@ -313,9 +435,9 @@ export async function reservarCreditoPlano(params: {
   observacao?: string;
 }) {
   const quantidade = params.quantidade ?? 1;
-  const assinatura = await buscarAssinaturaAtiva(params.clienteId);
+  const assinatura = await buscarAssinaturaPorId(params.assinaturaId);
 
-  if (!assinatura || assinatura.id !== params.assinaturaId) {
+  if (!assinatura || assinatura.cliente_id !== params.clienteId || assinatura.status !== "ativo") {
     throw new Error("Assinatura ativa nao encontrada.");
   }
 
@@ -331,13 +453,21 @@ export async function reservarCreditoPlano(params: {
   patch[campos.restante] = restanteAtual - quantidade;
   patch[campos.reservado] = reservadoAtual + quantidade;
 
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from("assinaturas")
     .update(patch)
-    .eq("id", assinatura.id);
+    .eq("id", assinatura.id)
+    .eq(campos.restante, restanteAtual)
+    .eq(campos.reservado, reservadoAtual)
+    .select("id")
+    .maybeSingle();
 
   if (updateError) {
     throw new Error(updateError.message);
+  }
+
+  if (!updated) {
+    throw new Error("Os creditos do plano foram alterados por outra operacao. Tente novamente.");
   }
 
   await registrarMovimentacaoAssinatura({
@@ -361,10 +491,10 @@ export async function liquidarCreditoPlano(params: {
   observacao?: string;
 }) {
   const quantidade = params.quantidade ?? 1;
-  const assinatura = await buscarAssinaturaAtiva(params.clienteId);
+  const assinatura = await buscarAssinaturaPorId(params.assinaturaId);
 
-  if (!assinatura || assinatura.id !== params.assinaturaId) {
-    throw new Error("Assinatura ativa nao encontrada.");
+  if (!assinatura || assinatura.cliente_id !== params.clienteId) {
+    throw new Error("Assinatura vinculada nao encontrada.");
   }
 
   const campos = getCamposPorCategoria(params.categoria);
@@ -379,13 +509,21 @@ export async function liquidarCreditoPlano(params: {
   patch[campos.reservado] = reservadoAtual - quantidade;
   patch[campos.restante] = params.tipo === "devolucao_credito" ? restanteAtual + quantidade : restanteAtual;
 
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from("assinaturas")
     .update(patch)
-    .eq("id", assinatura.id);
+    .eq("id", assinatura.id)
+    .eq(campos.restante, restanteAtual)
+    .eq(campos.reservado, reservadoAtual)
+    .select("id")
+    .maybeSingle();
 
   if (updateError) {
     throw new Error(updateError.message);
+  }
+
+  if (!updated) {
+    throw new Error("Os creditos reservados foram alterados por outra operacao. Tente novamente.");
   }
 
   await registrarMovimentacaoAssinatura({
@@ -406,6 +544,8 @@ export async function registrarUsoManualPlano(params: {
   quantidade?: number;
   observacao?: string;
 }) {
+  await sincronizarAssinaturas();
+
   const quantidade = params.quantidade ?? 1;
   const assinatura = await buscarAssinaturaAtiva(params.clienteId);
 
@@ -423,13 +563,20 @@ export async function registrarUsoManualPlano(params: {
   const patch: Record<string, number> = {};
   patch[campos.restante] = restanteAtual - quantidade;
 
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from("assinaturas")
     .update(patch)
-    .eq("id", assinatura.id);
+    .eq("id", assinatura.id)
+    .eq(campos.restante, restanteAtual)
+    .select("id")
+    .maybeSingle();
 
   if (updateError) {
     throw new Error(updateError.message);
+  }
+
+  if (!updated) {
+    throw new Error("O saldo do plano foi alterado por outra operacao. Tente novamente.");
   }
 
   await registrarMovimentacaoAssinatura({
@@ -450,6 +597,9 @@ export async function criarAssinatura(params: {
   fimCiclo: string;
   observacoes?: string;
 }) {
+  assertValidCycleRange(params.inicioCiclo, params.fimCiclo);
+  await sincronizarAssinaturas();
+
   const assinaturaAtual = await buscarAssinaturaAtiva(params.clienteId);
   if (assinaturaAtual) {
     throw new Error("Cliente ja possui um plano ativo.");
@@ -491,6 +641,9 @@ export async function criarAssinatura(params: {
 }
 
 export async function renovarAssinatura(assinaturaId: string, plano: Plano, inicioCiclo: string, fimCiclo: string) {
+  assertValidCycleRange(inicioCiclo, fimCiclo);
+  await sincronizarAssinaturas();
+
   const { data: assinatura, error: assinaturaError } = await supabase
     .from("assinaturas")
     .select("*")
@@ -502,18 +655,7 @@ export async function renovarAssinatura(assinaturaId: string, plano: Plano, inic
   }
 
   const patch = {
-    inicio_ciclo: inicioCiclo,
-    fim_ciclo: fimCiclo,
-    proxima_renovacao: fimCiclo,
-    cortes_totais: plano.cortes_incluidos,
-    cortes_restantes: plano.cortes_incluidos,
-    cortes_reservados: 0,
-    barbas_totais: plano.barbas_incluidas,
-    barbas_restantes: plano.barbas_incluidas,
-    barbas_reservadas: 0,
-    sobrancelhas_totais: plano.sobrancelhas_incluidas,
-    sobrancelhas_restantes: plano.sobrancelhas_incluidas,
-    sobrancelhas_reservadas: 0,
+    ...buildCyclePatchFromPlano(assinatura as AssinaturaAtiva, plano, inicioCiclo, fimCiclo),
     status: "ativo",
     plano_id: plano.id,
     observacoes_internas: assinatura.observacoes_internas ?? null,
@@ -541,6 +683,8 @@ export async function renovarAssinatura(assinaturaId: string, plano: Plano, inic
 }
 
 export async function aplicarTrocaImediata(assinaturaId: string, plano: Plano) {
+  await sincronizarAssinaturas();
+
   const { data: assinatura, error: assinaturaError } = await supabase
     .from("assinaturas")
     .select("*")
@@ -598,6 +742,18 @@ export async function atualizarObservacoesAssinatura(assinaturaId: string, obser
 }
 
 export async function cancelarAssinatura(assinaturaId: string) {
+  await sincronizarAssinaturas();
+
+  const assinatura = await buscarAssinaturaPorId(assinaturaId);
+
+  if (!assinatura) {
+    throw new Error("Assinatura nao encontrada.");
+  }
+
+  if (getReservedSummary(assinatura).total > 0) {
+    throw new Error("Nao e possivel cancelar o plano com creditos reservados em agendamentos futuros.");
+  }
+
   const { data, error } = await supabase
     .from("assinaturas")
     .update({ status: "cancelado", cancelado_em: new Date().toISOString() })

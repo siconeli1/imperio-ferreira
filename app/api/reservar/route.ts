@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { validateBusinessSlot } from "@/lib/agenda-booking";
+import { validateBusinessSlot, validateCustomerBookingDate } from "@/lib/agenda-booking";
 import { minutesToTime } from "@/lib/agenda";
 import { getBusyIntervals, getAnyAvailableBarber, overlaps } from "@/lib/agenda-conflicts";
 import { findBarbeiroById } from "@/lib/barbeiros";
@@ -41,6 +41,11 @@ export async function POST(req: Request) {
 
     if (!data || !horaInicio || serviceIds.length === 0) {
       return NextResponse.json({ erro: "Campos obrigatorios: data, hora_inicio e service_ids." }, { status: 400 });
+    }
+
+    const dateValidation = validateCustomerBookingDate(data);
+    if (!dateValidation.ok) {
+      return NextResponse.json({ erro: dateValidation.erro }, { status: 409 });
     }
 
     const servicos = await encontrarServicosAtivosPorIds(serviceIds);

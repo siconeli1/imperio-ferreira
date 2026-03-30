@@ -80,7 +80,12 @@ function isConcluded(row: FinanceRow) {
 }
 
 function isPending(row: FinanceRow) {
-  return row.status_agendamento !== "cancelado" && row.status_agendamento !== "no_show" && row.status_pagamento !== "pago";
+  return (
+    row.status_agendamento !== "cancelado" &&
+    row.status_agendamento !== "no_show" &&
+    row.status_pagamento !== "pago" &&
+    row.status_pagamento !== "estornado"
+  );
 }
 
 function isNoShow(row: FinanceRow) {

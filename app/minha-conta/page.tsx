@@ -240,7 +240,7 @@ export default function MinhaContaPage() {
                           <div>
                             <p className="font-semibold text-white">{item.servico_nome || "Servico"}</p>
                             <p className="mt-2 text-sm text-[var(--muted)]">
-                              {formatarDataISO(item.data)} • {formatarHora(item.hora_inicio)} ate {formatarHora(item.hora_fim)}
+                              {formatarDataISO(item.data)} - {formatarHora(item.hora_inicio)} ate {formatarHora(item.hora_fim)}
                             </p>
                           </div>
                           <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-strong)]">
@@ -267,7 +267,7 @@ export default function MinhaContaPage() {
                         <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
                           <p className="font-semibold">{item.descricao}</p>
                           <p className="mt-2 text-sm text-[var(--muted)]">
-                            {formatDateValue(item.competencia)} • {Number(item.valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                            {formatDateValue(item.competencia)} - {Number(item.valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                           </p>
                         </div>
                       ))}
@@ -285,7 +285,7 @@ export default function MinhaContaPage() {
                         <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
                           <p className="font-semibold">{item.tipo_movimentacao}</p>
                           <p className="mt-2 text-sm text-[var(--muted)]">
-                            {item.categoria_servico} • {item.quantidade} unidade(s)
+                            {item.categoria_servico} - {item.quantidade} unidade(s)
                           </p>
                         </div>
                       ))}

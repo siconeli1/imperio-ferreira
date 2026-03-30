@@ -2,14 +2,13 @@
 import { requireAdminSession } from "@/lib/admin-auth";
 import { buildCustomerEmailMap } from "@/lib/admin-customers";
 import { listarPlanosAtivos, type Plano } from "@/lib/planos";
-import { sincronizarAssinaturas } from "@/lib/assinaturas";
+import { projectAssinaturaPeriodo } from "@/lib/assinaturas";
 import { supabase } from "@/lib/supabase";
 import { getWhatsAppLink } from "@/lib/whatsapp";
 
 export async function GET(request: Request) {
   try {
     await requireAdminSession();
-    await sincronizarAssinaturas();
 
     const { searchParams } = new URL(request.url);
     const busca = String(searchParams.get("busca") ?? "").trim().toLowerCase();
@@ -23,7 +22,7 @@ export async function GET(request: Request) {
         .order("nome", { ascending: true }),
       supabase
         .from("assinaturas")
-        .select("id, cliente_id, plano_id, status, fim_ciclo, proxima_renovacao")
+        .select("id, cliente_id, plano_id, status, tipo_renovacao, inicio_ciclo, fim_ciclo, proxima_renovacao")
         .eq("status", "ativo"),
       supabase
         .from("agendamentos")
@@ -44,7 +43,17 @@ export async function GET(request: Request) {
     }
 
     const planoById = new Map((planos as Plano[]).map((item) => [item.id, item]));
-    const assinaturaByCliente = new Map((assinaturasRes.data ?? []).map((item) => [item.cliente_id, item]));
+    const assinaturaByCliente = new Map(
+      (assinaturasRes.data ?? [])
+        .map((item) => {
+          const assinaturaAtual = projectAssinaturaPeriodo(item);
+          if (!assinaturaAtual) {
+            return null;
+          }
+          return [item.cliente_id, { ...item, ...assinaturaAtual }] as const;
+        })
+        .filter((item): item is readonly [string, NonNullable<typeof assinaturasRes.data>[number]] => Boolean(item))
+    );
     const emailByAuthUserId = await buildCustomerEmailMap((clientesRes.data ?? []).map((cliente) => cliente.auth_user_id));
     const ultimaVisitaByCliente = new Map<string, string>();
 

@@ -35,6 +35,7 @@ type BarbeiroOption = {
 export default function AdminBloqueiosPage() {
   const today = getTodayInputValue();
   const [filtroData, setFiltroData] = useState(today);
+  const [formData, setFormData] = useState(today);
   const [bloqueios, setBloqueios] = useState<Bloqueio[]>([]);
   const [tipo, setTipo] = useState<Bloqueio["tipo_bloqueio"]>("horario");
   const [horaInicio, setHoraInicio] = useState("");
@@ -86,7 +87,7 @@ export default function AdminBloqueiosPage() {
     }
   }, []);
 
-  const carregarBloqueios = useCallback(async () => {
+  const carregarBloqueios = useCallback(async (dataConsulta?: string) => {
     if (contextLoading) {
       return;
     }
@@ -101,7 +102,8 @@ export default function AdminBloqueiosPage() {
     setErro("");
 
     try {
-      const search = new URLSearchParams({ data: filtroData, barbeiro_id: barbeiroId });
+      const dataAlvo = dataConsulta ?? filtroData;
+      const search = new URLSearchParams({ data: dataAlvo, barbeiro_id: barbeiroId });
       const res = await fetch(`/api/bloqueios?${search.toString()}`, { cache: "no-store" });
       const json = await res.json();
 
@@ -134,7 +136,7 @@ export default function AdminBloqueiosPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        data: filtroData,
+        data: formData,
         barbeiro_id: barbeiroId,
         tipo_bloqueio: tipo,
         hora_inicio: horaInicio,
@@ -151,11 +153,12 @@ export default function AdminBloqueiosPage() {
     }
 
     setMsg("Bloqueio salvo com sucesso.");
+    setFiltroData(formData);
     setTipo("horario");
     setHoraInicio("");
     setHoraFim("");
     setMotivo("");
-    await carregarBloqueios();
+    await carregarBloqueios(formData);
   }
 
   async function removerBloqueio(id: string) {
@@ -220,8 +223,8 @@ export default function AdminBloqueiosPage() {
             <input
               name="data"
               type="date"
-              value={filtroData}
-              onChange={(event) => setFiltroData(event.target.value)}
+              value={formData}
+              onChange={(event) => setFormData(event.target.value)}
               className="datetime-input rounded-2xl border px-4 py-3"
             />
 

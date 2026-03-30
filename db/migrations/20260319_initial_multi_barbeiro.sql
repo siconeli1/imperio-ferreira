@@ -123,9 +123,9 @@ ALTER TABLE public.horarios_customizados
 
 INSERT INTO public.barbeiros (id, nome, slug, login, senha_hash, cargo, ativo, ordem, foto_url)
 VALUES
-  ('lucas-cantelle', 'Lucas Cantelle', 'lucas-cantelle', 'lucas', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', 'socio', true, 1, null),
+  ('lucas-cantelle', 'Lucas', 'lucas-cantelle', 'lucas', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', 'socio', true, 1, null),
   ('alexandre-albertini', 'Alexandre Albertini', 'alexandre-albertini', 'alexandre', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', 'barbeiro', true, 2, null),
-  ('ryan-ferreira', 'Ryan Ferreira', 'ryan-ferreira', 'ryan', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', 'socio', true, 3, null),
+  ('ryan-ferreira', 'Ryan', 'ryan-ferreira', 'ryan', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', 'socio', true, 3, null),
   ('peixoto', 'Peixoto', 'peixoto', 'peixoto', 'c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d', 'barbeiro', true, 4, null)
 ON CONFLICT (id) DO UPDATE SET
   nome = EXCLUDED.nome,

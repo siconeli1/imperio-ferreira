@@ -1,6 +1,6 @@
 import type { Servico, ServicePlanCoverage } from "@/lib/servicos";
 import { getServicePlanCoverage, hasPlanCoverage } from "@/lib/servicos";
-import { buscarAssinaturaAtiva, categoriaPodeUsarPlano, liquidarCreditoPlano, reservarCreditoPlano } from "@/lib/assinaturas";
+import { buscarAssinaturaAtiva, categoriaPodeUsarPlano, liquidarCreditoPlano, reservarCreditoPlano, sincronizarAssinaturas } from "@/lib/assinaturas";
 import { supabase } from "@/lib/supabase";
 
 export type AgendamentoItemPlanoDecision = {
@@ -44,6 +44,8 @@ export function calcularValorFinalDosItens(itens: AgendamentoItemPlanoDecision[]
 }
 
 export async function decidirCobrancaItens(clienteId: string, servicos: Servico[]) {
+  await sincronizarAssinaturas();
+
   const assinatura = await buscarAssinaturaAtiva(clienteId);
 
   if (!assinatura) {
@@ -187,23 +189,33 @@ export async function registrarReceitaAvulsaDoAgendamento(agendamentoId: string)
     throw new Error(error.message);
   }
 
-  for (const item of itens ?? []) {
-    const { data: existente } = await supabase
-      .from("financeiro_lancamentos")
-      .select("id")
-      .eq("agendamento_id", agendamentoId)
-      .eq("descricao", `Servico avulso: ${item.servico_nome}`)
-      .maybeSingle();
+  const { data: existentes, error: existentesError } = await supabase
+    .from("financeiro_lancamentos")
+    .select("descricao")
+    .eq("agendamento_id", agendamentoId)
+    .eq("categoria_financeira", "receita_servico_avulso");
 
-    if (!existente) {
-      await supabase.from("financeiro_lancamentos").insert({
-        cliente_id: agendamento.cliente_id,
-        agendamento_id: agendamentoId,
-        categoria_financeira: "receita_servico_avulso",
-        descricao: `Servico avulso: ${item.servico_nome}`,
-        valor: Number(item.servico_preco ?? 0),
-        competencia: agendamento.data,
-      });
+  if (existentesError) {
+    throw new Error(existentesError.message);
+  }
+
+  const descricoesExistentes = new Set((existentes ?? []).map((item) => String(item.descricao)));
+
+  for (const item of itens ?? []) {
+    const descricao = `Servico avulso: ${item.servico_nome}`;
+
+    if (descricoesExistentes.has(descricao)) {
+      continue;
     }
+
+    await supabase.from("financeiro_lancamentos").insert({
+      cliente_id: agendamento.cliente_id,
+      agendamento_id: agendamentoId,
+      categoria_financeira: "receita_servico_avulso",
+      descricao,
+      valor: Number(item.servico_preco ?? 0),
+      competencia: agendamento.data,
+    });
+    descricoesExistentes.add(descricao);
   }
 }

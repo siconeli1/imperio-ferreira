@@ -31,6 +31,7 @@ type AgendaResumo = {
   hora_fim: string;
   nome_cliente: string;
   servico_nome: string;
+  origem?: "agendamento" | "horario_customizado";
 };
 
 type AdminMeResponse = {
@@ -152,7 +153,7 @@ export default function AdminMarcarPage() {
         throw new Error(json.erro || "Erro ao carregar agenda do dia.");
       }
 
-      setAgendaData((json ?? []).filter((item: AgendaResumo & { origem?: string }) => item.origem !== "horario_customizado"));
+      setAgendaData(json ?? []);
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro ao carregar agenda do dia.");
     }
@@ -235,7 +236,7 @@ export default function AdminMarcarPage() {
       <AdminPageHeading
         eyebrow="Marcar horarios"
         title="Marcar horario manualmente"
-        description="Escolha a data, o horario, o servico e o cliente. O sistema so impede a marcacao quando ja existe conflito real na sua agenda."
+        description="Escolha a data, o horario, o servico e o cliente. A lista ao lado mostra agendamentos e reservas manuais que ja ocupam sua agenda."
       />
 
       {erro ? <div className="mb-6"><AdminNotice tone="danger">{erro}</AdminNotice></div> : null}
@@ -350,7 +351,7 @@ export default function AdminMarcarPage() {
           ) : null}
         </AdminPanel>
 
-        <AdminPanel title="Agenda da data" description="Confira os horarios ja ocupados antes de salvar para evitar encaixes conflitantes.">
+        <AdminPanel title="Agenda da data" description="Confira agendamentos e reservas manuais ja ocupados antes de salvar para evitar encaixes conflitantes.">
           <div className="mb-5 max-w-xs">
             <label className="text-sm text-[var(--muted)]">Data consultada</label>
             <input
@@ -369,7 +370,12 @@ export default function AdminMarcarPage() {
             <div className="space-y-4">
               {agendaData.map((item) => (
                 <div key={item.id} className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <p className="font-semibold">{item.hora_inicio.slice(0, 5)} - {item.hora_fim.slice(0, 5)}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-semibold">{item.hora_inicio.slice(0, 5)} - {item.hora_fim.slice(0, 5)}</p>
+                    <span className="rounded-full border border-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-[var(--accent-strong)]">
+                      {item.origem === "horario_customizado" ? "Reserva manual" : "Agendamento"}
+                    </span>
+                  </div>
                   <p className="mt-2 text-sm text-[var(--muted)]">{item.nome_cliente}</p>
                   <p className="mt-1 text-sm text-[var(--muted)]">{item.servico_nome}</p>
                 </div>

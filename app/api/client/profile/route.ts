@@ -23,11 +23,11 @@ export async function POST(request: Request) {
     const dataNascimento = String(body?.data_nascimento ?? "").trim();
 
     if (!nome || !telefone) {
-      return NextResponse.json({ erro: "Nome e telefone são obrigatórios." }, { status: 400 });
+      return NextResponse.json({ erro: "Nome e telefone sao obrigatorios." }, { status: 400 });
     }
 
     if (!isValidPhone(telefone)) {
-      return NextResponse.json({ erro: "Informe um telefone válido com DDD." }, { status: 400 });
+      return NextResponse.json({ erro: "Informe um telefone valido com DDD." }, { status: 400 });
     }
 
     const existing = await getCustomerProfileByAuthUserId(auth.authUserId);
@@ -78,7 +78,7 @@ export async function PATCH(request: Request) {
     if (body?.telefone) {
       const telefone = normalizePhone(body.telefone);
       if (!isValidPhone(telefone)) {
-        return NextResponse.json({ erro: "Informe um telefone válido com DDD." }, { status: 400 });
+        return NextResponse.json({ erro: "Informe um telefone valido com DDD." }, { status: 400 });
       }
       patch.telefone = telefone;
     }
@@ -87,7 +87,7 @@ export async function PATCH(request: Request) {
     }
 
     if (Object.keys(patch).length === 0) {
-      return NextResponse.json({ erro: "Nenhuma alteração válida foi enviada." }, { status: 400 });
+      return NextResponse.json({ erro: "Nenhuma alteracao valida foi enviada." }, { status: 400 });
     }
 
     const { data, error } = await supabase

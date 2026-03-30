@@ -6,6 +6,7 @@ import {
   buscarAssinaturaAtiva,
   criarAssinatura,
   listarNotificacoesAssinatura,
+  projectAssinaturaPeriodo,
   registrarUsoManualPlano,
   renovarAssinatura,
 } from "@/lib/assinaturas";
@@ -25,14 +26,33 @@ type AssinanteRow = {
   id: string;
   cliente_id: string;
   plano_id: string;
-  status: string;
-  tipo_renovacao: string;
+  status: "ativo" | "cancelado" | "expirado";
+  tipo_renovacao: "manual" | "automatica";
   inicio_ciclo: string;
   fim_ciclo: string;
   proxima_renovacao: string;
   observacoes_internas?: string | null;
   clientes?: { id?: string; nome?: string; telefone?: string } | { id?: string; nome?: string; telefone?: string }[] | null;
 };
+
+function getErrorStatus(message: string) {
+  if (message === "Nao autorizado") return 401;
+  if (
+    message.includes("obrigatorio") ||
+    message.includes("YYYY-MM-DD") ||
+    message.includes("fim_ciclo")
+  ) {
+    return 400;
+  }
+  if (
+    message.includes("ja possui um plano ativo") ||
+    message.includes("Nao e possivel cancelar o plano com creditos reservados") ||
+    message.includes("alterados por outra operacao")
+  ) {
+    return 409;
+  }
+  return 500;
+}
 
 export async function GET(request: Request) {
   try {
@@ -48,21 +68,12 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from("assinaturas")
-      .select("id, cliente_id, plano_id, status, tipo_renovacao, inicio_ciclo, fim_ciclo, proxima_renovacao, observacoes_internas, clientes(id, nome, telefone)")
+      .select("*, clientes(id, nome, telefone)")
       .eq("status", "ativo")
       .order("proxima_renovacao", { ascending: true });
 
     if (planoId) {
       query = query.eq("plano_id", planoId);
-    }
-
-    if (vencimento === "hoje") {
-      query = query.eq("proxima_renovacao", hoje);
-    } else if (vencimento === "proximos_7") {
-      const limite = new Date(`${hoje}T00:00:00`);
-      limite.setDate(limite.getDate() + 7);
-      const limiteIso = `${limite.getFullYear()}-${String(limite.getMonth() + 1).padStart(2, "0")}-${String(limite.getDate()).padStart(2, "0")}`;
-      query = query.lte("proxima_renovacao", limiteIso);
     }
 
     const { data, error } = await query;
@@ -71,13 +82,44 @@ export async function GET(request: Request) {
       return NextResponse.json({ erro: error.message }, { status: 500 });
     }
 
-    const rawAssinantes = ((data ?? []) as unknown as AssinanteRow[]).filter((item) => {
-      if (!busca) return true;
-      const cliente = getClienteRelation(item.clientes);
-      const nome = String(cliente?.nome ?? "").toLowerCase();
-      const telefone = String(cliente?.telefone ?? "");
-      return nome.includes(busca) || telefone.includes(busca);
-    });
+    const limiteVencimentoIso =
+      vencimento === "proximos_7"
+        ? (() => {
+            const limite = new Date(`${hoje}T00:00:00`);
+            limite.setDate(limite.getDate() + 7);
+            return `${limite.getFullYear()}-${String(limite.getMonth() + 1).padStart(2, "0")}-${String(limite.getDate()).padStart(2, "0")}`;
+          })()
+        : null;
+
+    const rawAssinantes = ((data ?? []) as unknown as AssinanteRow[])
+      .map((item) => {
+        const assinaturaAtual = projectAssinaturaPeriodo(item);
+        if (!assinaturaAtual) {
+          return null;
+        }
+        return {
+          ...item,
+          ...assinaturaAtual,
+        };
+      })
+      .filter((item): item is AssinanteRow => Boolean(item))
+      .filter((item) => {
+        if (!busca) return true;
+        const cliente = getClienteRelation(item.clientes);
+        const nome = String(cliente?.nome ?? "").toLowerCase();
+        const telefone = String(cliente?.telefone ?? "");
+        return nome.includes(busca) || telefone.includes(busca);
+      })
+      .filter((item) => {
+        if (vencimento === "hoje") {
+          return item.proxima_renovacao === hoje;
+        }
+        if (vencimento === "proximos_7" && limiteVencimentoIso) {
+          return item.proxima_renovacao <= limiteVencimentoIso;
+        }
+        return true;
+      })
+      .sort((a, b) => a.proxima_renovacao.localeCompare(b.proxima_renovacao));
 
     const assinantes = rawAssinantes.map((item) => ({
       ...item,
@@ -240,6 +282,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ erro: "Acao nao suportada." }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro ao processar assinatura.";
-    return NextResponse.json({ erro: message }, { status: message === "Nao autorizado" ? 401 : 500 });
+    return NextResponse.json({ erro: message }, { status: getErrorStatus(message) });
   }
 }

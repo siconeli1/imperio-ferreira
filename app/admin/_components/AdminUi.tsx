@@ -12,11 +12,11 @@ export function AdminPageHeading({
   actions?: ReactNode;
 }) {
   return (
-    <section className="mb-8 grid gap-4 border border-white/10 bg-white/[0.03] p-6 lg:grid-cols-[1fr_auto] lg:items-center">
+    <section className="mb-8 grid gap-4 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(0,0,0,0.16))] p-5 sm:p-6 lg:grid-cols-[1fr_auto] lg:items-center">
       <div>
         {eyebrow && <p className="text-xs uppercase tracking-[0.26em] text-[var(--accent-strong)]">{eyebrow}</p>}
         <h1 className="mt-3 text-3xl font-semibold sm:text-4xl">{title}</h1>
-        <p className="mt-3 max-w-3xl text-[var(--muted)]">{description}</p>
+        <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)] sm:text-base">{description}</p>
       </div>
       {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
     </section>
@@ -33,10 +33,10 @@ export function AdminPanel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(0,0,0,0.18))] p-5 shadow-[0_18px_40px_rgba(0,0,0,0.16)] sm:p-6">
       <div className="mb-5">
         <h2 className="text-xl font-semibold sm:text-2xl">{title}</h2>
-        {description ? <p className="mt-2 text-sm text-[var(--muted)]">{description}</p> : null}
+        {description ? <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{description}</p> : null}
       </div>
       {children}
     </section>
@@ -53,10 +53,10 @@ export function AdminMetric({
   note?: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-5">
+    <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(0,0,0,0.2))] p-5">
       <p className="text-xs uppercase tracking-[0.22em] text-[var(--accent-strong)]">{label}</p>
       <p className="mt-4 text-2xl font-semibold sm:text-3xl">{value}</p>
-      {note ? <p className="mt-2 text-sm text-[var(--muted)]">{note}</p> : null}
+      {note ? <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{note}</p> : null}
     </div>
   );
 }

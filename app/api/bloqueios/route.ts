@@ -67,7 +67,11 @@ export async function POST(req: Request) {
       }
     }
 
-    const [{ data: agendamentos, error: agendamentosError }, { data: horariosCustomizados, error: horariosError }] =
+    const [
+      { data: agendamentos, error: agendamentosError },
+      { data: horariosCustomizados, error: horariosError },
+      { data: bloqueiosExistentes, error: bloqueiosError },
+    ] =
       await Promise.all([
         supabase
           .from("agendamentos")
@@ -79,13 +83,31 @@ export async function POST(req: Request) {
           .select("id, nome_cliente, celular_cliente, hora_inicio, hora_fim")
           .eq("barbeiro_id", targetBarbeiroId)
           .eq("data", data),
+        supabase
+          .from("bloqueios_agenda")
+          .select("id, hora_inicio, hora_fim, dia_inteiro, tipo_bloqueio")
+          .eq("barbeiro_id", targetBarbeiroId)
+          .eq("data", data),
       ]);
 
-    if (agendamentosError || horariosError) {
-      return NextResponse.json({ erro: agendamentosError?.message || horariosError?.message }, { status: 500 });
+    if (agendamentosError || horariosError || bloqueiosError) {
+      return NextResponse.json({ erro: agendamentosError?.message || horariosError?.message || bloqueiosError?.message }, { status: 500 });
     }
 
+    const bloqueios = bloqueiosExistentes || [];
+    const hasBloqueioDiaInteiro = bloqueios.some((item) => item.dia_inteiro || item.tipo_bloqueio === "dia_inteiro");
+    const hasNaoAceitarMais = bloqueios.some((item) => item.tipo_bloqueio === "nao_aceitar_mais");
+
     if (tipo_bloqueio === "dia_inteiro") {
+      if (bloqueios.length > 0) {
+        return NextResponse.json(
+          {
+            erro: "Ja existe bloqueio cadastrado nessa data. Remova ou ajuste os bloqueios atuais antes de bloquear o dia inteiro.",
+          },
+          { status: 409 }
+        );
+      }
+
       const ocupacoesAtivas = [
         ...((agendamentos || [])
           .filter((agendamento) =>
@@ -123,6 +145,10 @@ export async function POST(req: Request) {
     }
 
     if (tipo_bloqueio === "horario") {
+      if (hasBloqueioDiaInteiro) {
+        return NextResponse.json({ erro: "Ja existe um bloqueio de dia inteiro nessa data." }, { status: 409 });
+      }
+
       const inicio = parseTimeToMinutes(hora_inicio);
       const fim = parseTimeToMinutes(hora_fim);
 
@@ -156,6 +182,33 @@ export async function POST(req: Request) {
 
       if (conflitoHorarioCustomizado) {
         return NextResponse.json({ erro: "Bloqueio conflita com um horario personalizado." }, { status: 409 });
+      }
+
+      const conflitoBloqueio = bloqueios.find((bloqueio) => {
+        if (bloqueio.dia_inteiro || bloqueio.tipo_bloqueio !== "horario" || !bloqueio.hora_inicio || !bloqueio.hora_fim) {
+          return false;
+        }
+
+        return overlaps(
+          inicio,
+          fim,
+          parseTimeToMinutes(String(bloqueio.hora_inicio)),
+          parseTimeToMinutes(String(bloqueio.hora_fim))
+        );
+      });
+
+      if (conflitoBloqueio) {
+        return NextResponse.json({ erro: "Ja existe outro bloqueio nesse intervalo." }, { status: 409 });
+      }
+    }
+
+    if (tipo_bloqueio === "nao_aceitar_mais") {
+      if (hasBloqueioDiaInteiro) {
+        return NextResponse.json({ erro: "Ja existe um bloqueio de dia inteiro nessa data." }, { status: 409 });
+      }
+
+      if (hasNaoAceitarMais) {
+        return NextResponse.json({ erro: "Essa data ja esta marcada para nao aceitar novos horarios." }, { status: 409 });
       }
     }
 

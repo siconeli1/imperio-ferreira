@@ -6,7 +6,6 @@ import {
   buscarAssinaturaAtiva,
   cancelarAssinatura,
   listarMovimentacoesCliente,
-  sincronizarAssinaturas,
 } from "@/lib/assinaturas";
 import { buscarPlanoPorId } from "@/lib/planos";
 import { supabase } from "@/lib/supabase";
@@ -21,7 +20,6 @@ function getIdFromRequest(request: Request) {
 export async function GET(request: Request) {
   try {
     await requireAdminSession();
-    await sincronizarAssinaturas();
     const clienteId = getIdFromRequest(request);
 
     const [clienteRes, reservasRes, financeiroRes, historicoTelefoneRes] = await Promise.all([
@@ -124,6 +122,16 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ cliente: data });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro ao atualizar cliente.";
-    return NextResponse.json({ erro: message }, { status: message === "Nao autorizado" ? 401 : 500 });
+    return NextResponse.json(
+      { erro: message },
+      {
+        status:
+          message === "Nao autorizado"
+            ? 401
+            : message.includes("Nao e possivel cancelar o plano com creditos reservados")
+              ? 409
+              : 500,
+      }
+    );
   }
 }

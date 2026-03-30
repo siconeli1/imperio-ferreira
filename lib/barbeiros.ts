@@ -13,10 +13,51 @@ export interface Barbeiro {
   foto_url: string | null;
 }
 
+const BARBEIROS_AUTORIZADOS = [
+  {
+    id: "lucas-cantelle",
+    nome: "Lucas",
+    slug: "lucas-cantelle",
+    login: "lucas",
+    cargo: "socio" as const,
+    ordem: 1,
+  },
+  {
+    id: "alexandre-albertini",
+    nome: "Alexandre Albertini",
+    slug: "alexandre-albertini",
+    login: "alexandre",
+    cargo: "barbeiro" as const,
+    ordem: 2,
+  },
+  {
+    id: "ryan-ferreira",
+    nome: "Ryan",
+    slug: "ryan-ferreira",
+    login: "ryan",
+    cargo: "socio" as const,
+    ordem: 3,
+  },
+  {
+    id: "peixoto",
+    nome: "Peixoto",
+    slug: "peixoto",
+    login: "peixoto",
+    cargo: "barbeiro" as const,
+    ordem: 4,
+  },
+] as const;
+
+type BarbeiroAutorizadoId = (typeof BARBEIROS_AUTORIZADOS)[number]["id"];
+
+const BARBEIROS_AUTORIZADOS_MAP = new Map<BarbeiroAutorizadoId, (typeof BARBEIROS_AUTORIZADOS)[number]>(
+  BARBEIROS_AUTORIZADOS.map((barbeiro) => [barbeiro.id, barbeiro])
+);
+
 const BARBEIROS_FALLBACK: Barbeiro[] = [
   {
     id: "lucas-cantelle",
-    nome: "Lucas Cantelle",
+    nome: "Lucas",
     slug: "lucas-cantelle",
     login: "lucas",
     senha_hash: "c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d",
@@ -38,7 +79,7 @@ const BARBEIROS_FALLBACK: Barbeiro[] = [
   },
   {
     id: "ryan-ferreira",
-    nome: "Ryan Ferreira",
+    nome: "Ryan",
     slug: "ryan-ferreira",
     login: "ryan",
     senha_hash: "c4ed9a5c3798260ebc2c43c02428cae33fe3dd59129ec82f50374b82a4e4907d",
@@ -60,6 +101,23 @@ const BARBEIROS_FALLBACK: Barbeiro[] = [
   },
 ];
 
+function filtrarBarbeirosAutorizados(barbeiros: Barbeiro[]) {
+  return barbeiros
+    .filter((barbeiro) => BARBEIROS_AUTORIZADOS_MAP.has(barbeiro.id as BarbeiroAutorizadoId))
+    .map((barbeiro) => {
+      const autorizado = BARBEIROS_AUTORIZADOS_MAP.get(barbeiro.id as BarbeiroAutorizadoId)!;
+      return {
+        ...barbeiro,
+        nome: autorizado.nome,
+        slug: autorizado.slug,
+        login: autorizado.login,
+        cargo: autorizado.cargo,
+        ordem: autorizado.ordem,
+      };
+    })
+    .sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
 async function loadBarbeirosFromDatabase() {
   const { data, error } = await supabase
     .from("barbeiros")
@@ -71,7 +129,7 @@ async function loadBarbeirosFromDatabase() {
     throw new Error(error.message);
   }
 
-  return (data ?? []) as Barbeiro[];
+  return filtrarBarbeirosAutorizados((data ?? []) as Barbeiro[]);
 }
 
 async function loadBarbeirosStrict() {
