@@ -51,3 +51,36 @@ npm run dev
 npm run lint
 npm run build
 ```
+
+## Verificacao automatica antes de deploy
+
+O projeto agora possui uma bateria unificada:
+
+```bash
+npm run verify
+```
+
+Ela executa:
+
+- `npm run lint`
+- `npm run test`
+- `npm run smoke`
+- `npm run build`
+
+### GitHub Actions
+
+O workflow [`verify.yml`](c:\projetos\git\imperio-ferreira\.github\workflows\verify.yml) roda essa bateria em todo `push` e `pull request`.
+
+### Vercel
+
+O arquivo [`vercel.json`](c:\projetos\git\imperio-ferreira\vercel.json) configura o Vercel para executar `npm run verify` antes do deploy. Se qualquer etapa falhar, o deploy falha.
+
+### Hook local
+
+Para ativar o hook local de `pre-push` neste clone:
+
+```bash
+npm run setup:hooks
+```
+
+Depois disso, todo `git push` roda a bateria automaticamente antes de enviar a branch.

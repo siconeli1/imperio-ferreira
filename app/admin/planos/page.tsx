@@ -1,20 +1,16 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { getTodayInputValue } from "@/lib/format";
+import { formatarDataISO, getDefaultMonthlyCycle, getNextMonthlyCycleEnd } from "@/lib/format";
+import type { Plano } from "@/lib/planos";
 import {
   AdminActionButton,
   AdminMetric,
-  AdminNotice,
   AdminPageHeading,
   AdminPanel,
+  AdminToast,
 } from "@/app/admin/_components/AdminUi";
-
-type Plano = {
-  id: string;
-  nome: string;
-};
 
 type ClienteResumo = {
   id: string;
@@ -41,8 +37,11 @@ type Notificacao = {
   clientes?: { nome?: string; telefone?: string } | null;
 };
 
+const INITIAL_CYCLE = getDefaultMonthlyCycle();
+const SELECT_STYLE = { colorScheme: "dark" as const, backgroundColor: "#18211f", color: "#ffffff" };
+const SELECT_OPTION_STYLE = { backgroundColor: "#101715", color: "#ffffff" };
+
 export default function AdminPlanosPage() {
-  const today = getTodayInputValue();
   const [planos, setPlanos] = useState<Plano[]>([]);
   const [clientes, setClientes] = useState<ClienteResumo[]>([]);
   const [assinantes, setAssinantes] = useState<Assinante[]>([]);
@@ -53,10 +52,8 @@ export default function AdminPlanosPage() {
   const [clienteBusca, setClienteBusca] = useState("");
   const [clienteId, setClienteId] = useState("");
   const [planoIdCadastro, setPlanoIdCadastro] = useState("");
-  const [tipoRenovacao, setTipoRenovacao] = useState<"manual" | "automatica">("manual");
-  const [inicioCiclo, setInicioCiclo] = useState(today);
-  const [fimCiclo, setFimCiclo] = useState(today);
-  const [observacoes, setObservacoes] = useState("");
+  const [inicioCiclo, setInicioCiclo] = useState(INITIAL_CYCLE.inicioCiclo);
+  const [fimCiclo, setFimCiclo] = useState(INITIAL_CYCLE.fimCiclo);
   const [erro, setErro] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
@@ -83,25 +80,19 @@ export default function AdminPlanosPage() {
       if (!clientesRes.ok) throw new Error(clientesJson.erro || "Erro ao carregar clientes.");
       if (!assinaturasRes.ok) throw new Error(assinaturasJson.erro || "Erro ao carregar assinaturas.");
 
-      setPlanos(planosJson.planos ?? []);
-      setClientes(clientesJson.clientes ?? []);
+      const planosCarregados = (planosJson.planos ?? []) as Plano[];
+      const clientesCarregados = (clientesJson.clientes ?? []) as ClienteResumo[];
+
+      setPlanos(planosCarregados);
+      setClientes(clientesCarregados);
       setAssinantes(assinaturasJson.assinantes ?? []);
       setNotificacoes(assinaturasJson.notificacoes_vencimento ?? []);
-
-      if (!planoIdCadastro && (planosJson.planos ?? [])[0]) {
-        setPlanoIdCadastro(planosJson.planos[0].id);
-      }
-
-      const clientesSemPlano = (clientesJson.clientes ?? []).filter((cliente: ClienteResumo) => !cliente.plano_ativo);
-      if (!clienteId && clientesSemPlano[0]) {
-        setClienteId(clientesSemPlano[0].id);
-      }
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro ao carregar area de planos.");
     } finally {
       setLoading(false);
     }
-  }, [busca, planoIdFiltro, vencimento, planoIdCadastro, clienteId]);
+  }, [busca, planoIdFiltro, vencimento]);
 
   useEffect(() => {
     void carregar();
@@ -122,6 +113,44 @@ export default function AdminPlanosPage() {
       .slice(0, 12);
   }, [clienteBusca, clientesSemPlano]);
 
+  useEffect(() => {
+    if (!planoIdCadastro && planos[0]) {
+      setPlanoIdCadastro(planos[0].id);
+    }
+  }, [planos, planoIdCadastro]);
+
+  useEffect(() => {
+    if (!clienteId && clientesSemPlano[0]) {
+      setClienteId(clientesSemPlano[0].id);
+    }
+  }, [clienteId, clientesSemPlano]);
+
+  useEffect(() => {
+    if (clientesFiltrados.length === 0) {
+      if (clienteId) {
+        setClienteId("");
+      }
+      return;
+    }
+
+    if (!clientesFiltrados.some((cliente) => cliente.id === clienteId)) {
+      setClienteId(clientesFiltrados[0].id);
+    }
+  }, [clienteId, clientesFiltrados]);
+
+  useEffect(() => {
+    if (!erro && !msg) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setErro("");
+      setMsg("");
+    }, 6000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [erro, msg]);
+
   async function adicionarPlano(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErro("");
@@ -136,10 +165,9 @@ export default function AdminPlanosPage() {
           acao: "adicionar_plano",
           cliente_id: clienteId,
           plano_id: planoIdCadastro,
-          tipo_renovacao: tipoRenovacao,
+          tipo_renovacao: "manual",
           inicio_ciclo: inicioCiclo,
           fim_ciclo: fimCiclo,
-          observacoes,
         }),
       });
       const json = await res.json();
@@ -148,8 +176,10 @@ export default function AdminPlanosPage() {
         throw new Error(json.erro || "Erro ao adicionar plano.");
       }
 
+      const novoCiclo = getDefaultMonthlyCycle();
+      setInicioCiclo(novoCiclo.inicioCiclo);
+      setFimCiclo(novoCiclo.fimCiclo);
       setMsg("Plano adicionado com sucesso.");
-      setObservacoes("");
       await carregar();
     } catch (error) {
       setErro(error instanceof Error ? error.message : "Erro ao adicionar plano.");
@@ -182,16 +212,20 @@ export default function AdminPlanosPage() {
     await carregar();
   }
 
+  function handleInicioCicloChange(value: string) {
+    setInicioCiclo(value);
+    setFimCiclo(getNextMonthlyCycleEnd(value));
+  }
+
   return (
     <>
       <AdminPageHeading
         eyebrow="Planos"
         title="Gestao de assinaturas"
-        description="Acompanhe os assinantes ativos, veja vencimentos e adicione novos planos sem sair desta area."
       />
 
-      {erro ? <div className="mb-6"><AdminNotice tone="danger">{erro}</AdminNotice></div> : null}
-      {msg ? <div className="mb-6"><AdminNotice tone="success">{msg}</AdminNotice></div> : null}
+      {erro ? <AdminToast tone="danger">{erro}</AdminToast> : null}
+      {msg ? <AdminToast tone="success">{msg}</AdminToast> : null}
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <AdminMetric label="Assinantes ativos" value={String(assinantes.length)} />
@@ -200,52 +234,52 @@ export default function AdminPlanosPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <AdminPanel title="Adicionar plano" description="Escolha o cliente, selecione o plano e defina o tipo de renovacao. O cliente precisa existir no cadastro antes de entrar aqui.">
+        <AdminPanel title="Adicionar plano">
           {loading ? <p className="text-[var(--muted)]">Carregando formulario...</p> : null}
 
           {!loading ? (
-            <form onSubmit={adicionarPlano} className="grid gap-4">
-              <input
-                type="text"
-                value={clienteBusca}
-                onChange={(event) => setClienteBusca(event.target.value)}
-                placeholder="Buscar cliente sem plano"
-                className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3"
-              />
+            <form onSubmit={adicionarPlano} className="grid gap-5">
+              <div className="grid gap-4">
+                <input
+                  type="text"
+                  value={clienteBusca}
+                  onChange={(event) => setClienteBusca(event.target.value)}
+                  placeholder="Buscar cliente sem plano"
+                  className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3"
+                />
 
-              <select value={clienteId} onChange={(event) => setClienteId(event.target.value)} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white">
-                {clientesFiltrados.length === 0 ? <option value="">Nenhum cliente sem plano encontrado</option> : null}
-                {clientesFiltrados.map((cliente) => (
-                  <option key={cliente.id} value={cliente.id}>
-                    {cliente.nome} - {cliente.telefone}
-                  </option>
-                ))}
-              </select>
-
-              <select value={planoIdCadastro} onChange={(event) => setPlanoIdCadastro(event.target.value)} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white">
-                {planos.map((plano) => (
-                  <option key={plano.id} value={plano.id}>
-                    {plano.nome}
-                  </option>
-                ))}
-              </select>
-
-              <select value={tipoRenovacao} onChange={(event) => setTipoRenovacao(event.target.value as "manual" | "automatica")} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white">
-                <option value="manual">Renovacao manual</option>
-                <option value="automatica">Renovacao automatica</option>
-              </select>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input type="date" value={inicioCiclo} onChange={(event) => setInicioCiclo(event.target.value)} className="datetime-input rounded-2xl border px-4 py-3" />
-                <input type="date" value={fimCiclo} onChange={(event) => setFimCiclo(event.target.value)} className="datetime-input rounded-2xl border px-4 py-3" />
+                <select
+                  value={clienteId}
+                  onChange={(event) => setClienteId(event.target.value)}
+                  className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white"
+                  style={SELECT_STYLE}
+                >
+                  {clientesFiltrados.length === 0 ? <option value="" style={SELECT_OPTION_STYLE}>Nenhum cliente sem plano encontrado</option> : null}
+                  {clientesFiltrados.map((cliente) => (
+                    <option key={cliente.id} value={cliente.id} style={SELECT_OPTION_STYLE}>
+                      {cliente.nome} - {cliente.telefone}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <textarea
-                value={observacoes}
-                onChange={(event) => setObservacoes(event.target.value)}
-                placeholder="Observacoes internas sobre essa assinatura"
-                className="min-h-[110px] rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3"
-              />
+              <div className="grid gap-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {planos.map((plano) => (
+                    <PlanoOptionCard
+                      key={plano.id}
+                      plano={plano}
+                      selected={planoIdCadastro === plano.id}
+                      onClick={() => setPlanoIdCadastro(plano.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input type="date" value={inicioCiclo} onChange={(event) => handleInicioCicloChange(event.target.value)} className="datetime-input rounded-2xl border px-4 py-3" />
+                <input type="date" value={fimCiclo} onChange={(event) => setFimCiclo(event.target.value)} className="datetime-input rounded-2xl border px-4 py-3" />
+              </div>
 
               <AdminActionButton type="submit" disabled={salvando || !clienteId || !planoIdCadastro}>
                 {salvando ? "Adicionando..." : "Adicionar plano"}
@@ -257,18 +291,18 @@ export default function AdminPlanosPage() {
         <AdminPanel title="Painel de assinantes" description="Filtre por nome, plano ou vencimento. Ao abrir o cliente, voce entra no detalhe completo do assinante.">
           <div className="mb-5 grid gap-3 lg:grid-cols-3">
             <input value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Buscar nome ou telefone" className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3" />
-            <select value={planoIdFiltro} onChange={(event) => setPlanoIdFiltro(event.target.value)} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white">
-              <option value="">Todos os planos</option>
+            <select value={planoIdFiltro} onChange={(event) => setPlanoIdFiltro(event.target.value)} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white" style={SELECT_STYLE}>
+              <option value="" style={SELECT_OPTION_STYLE}>Todos os planos</option>
               {planos.map((plano) => (
-                <option key={plano.id} value={plano.id}>
+                <option key={plano.id} value={plano.id} style={SELECT_OPTION_STYLE}>
                   {plano.nome}
                 </option>
               ))}
             </select>
-            <select value={vencimento} onChange={(event) => setVencimento(event.target.value)} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white">
-              <option value="todos">Todos os vencimentos</option>
-              <option value="hoje">Vencendo hoje</option>
-              <option value="proximos_7">Proximos 7 dias</option>
+            <select value={vencimento} onChange={(event) => setVencimento(event.target.value)} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white" style={SELECT_STYLE}>
+              <option value="todos" style={SELECT_OPTION_STYLE}>Todos os vencimentos</option>
+              <option value="hoje" style={SELECT_OPTION_STYLE}>Vencendo hoje</option>
+              <option value="proximos_7" style={SELECT_OPTION_STYLE}>Proximos 7 dias</option>
             </select>
           </div>
 
@@ -287,7 +321,7 @@ export default function AdminPlanosPage() {
                       </span>
                     </div>
                     <p className="mt-2 text-sm text-[var(--muted)]">{item.clientes?.telefone ?? "-"}</p>
-                    <p className="mt-1 text-sm text-[var(--muted)]">Vencimento: {item.proxima_renovacao}</p>
+                    <p className="mt-1 text-sm text-[var(--muted)]">Vencimento: {formatarDataISO(item.proxima_renovacao)}</p>
                     <p className="mt-1 text-sm text-[var(--muted)]">Renovacao: {item.tipo_renovacao}</p>
                   </div>
 
@@ -313,3 +347,50 @@ export default function AdminPlanosPage() {
   );
 }
 
+function PlanoOptionCard({
+  plano,
+  selected,
+  onClick,
+}: {
+  plano: Plano;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const itens = [
+    plano.cortes_incluidos > 0 ? `${plano.cortes_incluidos} corte(s)` : null,
+    plano.barbas_incluidas > 0 ? `${plano.barbas_incluidas} barba(s)` : null,
+    plano.sobrancelhas_incluidas > 0 ? `${plano.sobrancelhas_incluidas} sobrancelha(s)` : null,
+  ].filter(Boolean) as string[];
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-[24px] border p-4 text-left transition ${
+        selected
+          ? "border-[var(--accent)] bg-[linear-gradient(180deg,rgba(210,169,95,0.22),rgba(210,169,95,0.12))] shadow-[0_14px_28px_rgba(210,169,95,0.12)]"
+          : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.05]"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-white">{plano.nome}</p>
+          <p className="mt-2 text-sm text-[var(--muted)]">{plano.descricao || "Cobertura mensal da barbearia."}</p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${selected ? "bg-black/15 text-[var(--background)]" : "border border-white/10 bg-black/20 text-[var(--accent-strong)]"}`}>
+          {Number(plano.preco).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        </span>
+      </div>
+
+      {itens.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {itens.map((item) => (
+            <span key={item} className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-[var(--muted)]">
+              {item}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </button>
+  );
+}

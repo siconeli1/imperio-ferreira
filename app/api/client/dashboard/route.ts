@@ -42,7 +42,9 @@ export async function GET(request: Request) {
     }
 
     const plano = assinatura ? await buscarPlanoPorId(assinatura.plano_id) : null;
-    const historicoUso = await listarMovimentacoesCliente(cliente.id);
+    const historicoUso = (await listarMovimentacoesCliente(cliente.id)).filter(
+      (item) => item.tipo_movimentacao !== "renovacao"
+    );
     const reservas = projectAutoClosedAgendamentos(reservasRes.data ?? []);
 
     return NextResponse.json({

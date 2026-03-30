@@ -89,7 +89,7 @@ function LoginContent() {
           <p className="mt-6 text-xs uppercase tracking-[0.28em] text-[var(--accent-strong)]">Conta do cliente</p>
           <h1 className="mt-4 text-4xl font-semibold sm:text-5xl">Sua rotina com a barbearia em uma conta so.</h1>
           <p className="mx-auto mt-4 max-w-3xl text-base leading-7 text-[var(--muted)] sm:text-lg">
-            Entre com Google uma vez e use a mesma conta para agendar, acompanhar horarios e acessar sua area sem retrabalho.
+            Entre com Google uma vez e use a mesma conta para agendar, acompanhar horarios e acessarsuas informações.
           </p>
         </div>
 
@@ -102,7 +102,7 @@ function LoginContent() {
               <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Entrada simples</p>
               <h2 className="mt-4 text-3xl font-semibold">Acesse sua conta</h2>
               <p className="mt-4 max-w-xl text-[var(--muted)]">
-                O login acontece uma vez. Depois disso, suas reservas, seu cadastro e sua conta ficam organizados no mesmo fluxo.
+                O login acontece uma vez. Depois disso, suas reservas, seu cadastro ficam acessíveis pela sua conta google.
               </p>
 
               <button
@@ -133,9 +133,8 @@ function LoginContent() {
               </div>
 
               <div className="mt-8 rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
-                <p className="font-semibold text-white">Feito para o cliente comum</p>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  A ideia aqui nao e criar cadastro complicado. E permitir que voce marque e acompanhe seus horarios sem pensar demais.
+                  Marque e acompanhe horários com facilidade!
                 </p>
               </div>
             </div>
@@ -147,7 +146,7 @@ function LoginContent() {
             <CustomerOnboardingCard
               accessToken={accessToken}
               title="Complete seu cadastro"
-              description="Esta conta Google ainda nao foi finalizada no sistema. Informe seu nome e celular para continuar sem retrabalho nas proximas visitas."
+              description="Esta conta Google ainda nao foi finalizada no sistema. Informe seu nome e celular para continuar."
               submitLabel="Salvar e continuar"
               onSaved={async () => {
                 await refresh();

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CustomerOnboardingCard } from "@/app/_components/CustomerOnboardingCard";
-import { formatarDataISO, formatarHora } from "@/lib/format";
+import { formatarDataISO } from "@/lib/format";
 import { useCustomerSession } from "@/lib/use-customer-session";
 
 type DashboardPayload = {
@@ -99,8 +99,8 @@ export default function MinhaContaPage() {
 
   const assinatura = dashboard?.assinatura ?? null;
   const plano = dashboard?.plano ?? null;
-  const reservasRecentes = useMemo(() => (dashboard?.reservas ?? []).slice(0, 4), [dashboard]);
-  const ultimosLancamentos = useMemo(() => (dashboard?.financeiro ?? []).slice(0, 3), [dashboard]);
+  const possuiPlanoAtivo = Boolean(assinatura && plano);
+  const assinaturaAtiva = possuiPlanoAtivo ? assinatura : null;
   const ultimosUsos = useMemo(() => (dashboard?.historico_uso ?? []).slice(0, 3), [dashboard]);
 
   return (
@@ -194,87 +194,25 @@ export default function MinhaContaPage() {
                 <InfoBox label="Plano atual" value={String(plano?.nome ?? "Sem plano ativo")} />
               </div>
 
-              <section className="rounded-[28px] border border-white/10 bg-black/20 p-5 sm:p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+              {assinaturaAtiva ? (
+                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5 sm:p-6">
                   <div>
                     <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Plano mensal</p>
                     <h2 className="mt-2 text-2xl font-semibold">Resumo do seu ciclo</h2>
                   </div>
-                  <Link href="/meus-agendamentos" className="text-sm font-semibold text-[var(--accent-strong)] hover:text-white">
-                    Ver meus agendamentos
-                  </Link>
-                </div>
 
-                {!assinatura ? (
-                  <p className="mt-4 text-[var(--muted)]">Voce nao possui plano ativo no momento.</p>
-                ) : (
                   <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <InfoBox label="Plano" value={String(plano?.nome ?? assinatura.plano_id ?? "-")} />
-                    <InfoBox label="Proxima renovacao" value={formatDateValue(assinatura.proxima_renovacao)} />
-                    <InfoBox label="Periodo" value={`${formatDateValue(assinatura.inicio_ciclo)} ate ${formatDateValue(assinatura.fim_ciclo)}`} />
-                    <InfoBox label="Cortes restantes" value={String(assinatura.cortes_restantes ?? 0)} />
-                    <InfoBox label="Barbas restantes" value={String(assinatura.barbas_restantes ?? 0)} />
-                    <InfoBox label="Sobrancelhas restantes" value={String(assinatura.sobrancelhas_restantes ?? 0)} />
+                    <InfoBox label="Plano" value={String(plano?.nome ?? assinaturaAtiva.plano_id ?? "-")} />
+                    <InfoBox label="Proxima renovacao" value={formatDateValue(assinaturaAtiva.proxima_renovacao)} />
+                    <InfoBox label="Periodo" value={`${formatDateValue(assinaturaAtiva.inicio_ciclo)} ate ${formatDateValue(assinaturaAtiva.fim_ciclo)}`} />
+                    <InfoBox label="Cortes restantes" value={String(assinaturaAtiva.cortes_restantes ?? 0)} />
+                    <InfoBox label="Barbas restantes" value={String(assinaturaAtiva.barbas_restantes ?? 0)} />
+                    <InfoBox label="Sobrancelhas restantes" value={String(assinaturaAtiva.sobrancelhas_restantes ?? 0)} />
                   </div>
-                )}
-              </section>
-
-              <section className="rounded-[28px] border border-white/10 bg-black/20 p-5 sm:p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Reservas recentes</p>
-                    <h2 className="mt-2 text-2xl font-semibold">Seus ultimos atendimentos</h2>
-                  </div>
-                  <Link href="/agendar" className="text-sm font-semibold text-[var(--accent-strong)] hover:text-white">
-                    Fazer novo agendamento
-                  </Link>
-                </div>
-
-                {reservasRecentes.length === 0 ? (
-                  <p className="mt-4 text-[var(--muted)]">Ainda nao ha reservas vinculadas a sua conta.</p>
-                ) : (
-                  <div className="mt-5 space-y-3">
-                    {reservasRecentes.map((item) => (
-                      <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="font-semibold text-white">{item.servico_nome || "Servico"}</p>
-                            <p className="mt-2 text-sm text-[var(--muted)]">
-                              {formatarDataISO(item.data)} - {formatarHora(item.hora_inicio)} ate {formatarHora(item.hora_fim)}
-                            </p>
-                          </div>
-                          <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-strong)]">
-                            {resolveStatus(item.status_agendamento, item.status_atendimento)}
-                          </span>
-                        </div>
-                        <p className="mt-3 text-sm text-[var(--muted)]">
-                          {item.tipo_cobranca === "plano" ? "Coberto pelo plano" : "Cobranca avulsa"}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <div className="grid gap-5 lg:grid-cols-2">
-                <section className="rounded-[28px] border border-white/10 bg-black/20 p-5 sm:p-6">
-                  <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Financeiro recente</p>
-                  {ultimosLancamentos.length === 0 ? (
-                    <p className="mt-4 text-[var(--muted)]">Nenhum lancamento recente.</p>
-                  ) : (
-                    <div className="mt-5 space-y-3">
-                      {ultimosLancamentos.map((item) => (
-                        <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
-                          <p className="font-semibold">{item.descricao}</p>
-                          <p className="mt-2 text-sm text-[var(--muted)]">
-                            {formatDateValue(item.competencia)} - {Number(item.valor ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </section>
+              ) : null}
 
+              {assinaturaAtiva ? (
                 <section className="rounded-[28px] border border-white/10 bg-black/20 p-5 sm:p-6">
                   <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Uso do plano</p>
                   {ultimosUsos.length === 0 ? (
@@ -292,7 +230,7 @@ export default function MinhaContaPage() {
                     </div>
                   )}
                 </section>
-              </div>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -316,10 +254,4 @@ function formatDateValue(value?: string | null) {
     return formatarDataISO(value);
   }
   return value;
-}
-
-function resolveStatus(statusAgendamento?: string | null, statusAtendimento?: string | null) {
-  if (statusAgendamento === "cancelado") return "Cancelado";
-  if (statusAtendimento === "concluido") return "Concluido";
-  return "Agendado";
 }

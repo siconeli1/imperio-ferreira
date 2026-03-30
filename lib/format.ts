@@ -63,3 +63,49 @@ export function isDateBeyondLimit(iso: string, maxDays: number) {
 export function getTodayInputValue() {
   return getLocalDateInputValue()
 }
+
+function parseIsoDateParts(iso: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+
+  if (!match) {
+    return null
+  }
+
+  const [, yearText, monthText, dayText] = match
+  const year = Number(yearText)
+  const month = Number(monthText)
+  const day = Number(dayText)
+
+  if (!year || !month || !day) {
+    return null
+  }
+
+  return { year, month, day }
+}
+
+function formatIsoDateFromParts(year: number, month: number, day: number) {
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+}
+
+export function getNextMonthlyCycleEnd(startIso: string) {
+  const parsed = parseIsoDateParts(startIso)
+
+  if (!parsed) {
+    return startIso
+  }
+
+  const nextMonthIndex = parsed.month
+  const nextYear = nextMonthIndex >= 12 ? parsed.year + 1 : parsed.year
+  const nextMonth = nextMonthIndex >= 12 ? 1 : nextMonthIndex + 1
+  const lastDayOfNextMonth = new Date(nextYear, nextMonth, 0).getDate()
+  const nextDay = Math.min(parsed.day, lastDayOfNextMonth)
+
+  return formatIsoDateFromParts(nextYear, nextMonth, nextDay)
+}
+
+export function getDefaultMonthlyCycle(startIso = getTodayInputValue()) {
+  return {
+    inicioCiclo: startIso,
+    fimCiclo: getNextMonthlyCycleEnd(startIso),
+  }
+}

@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "Running verification suite before push..."
+npm run verify

@@ -5,11 +5,6 @@ import { getWhatsAppLink } from "@/lib/whatsapp";
 
 const ENDERECO = "Av dos Arnaldos 3407, Antonia Franco, Fernandopolis";
 const WHATSAPP_LOJA = "+55 17 98131-4724";
-const DESTAQUES = [
-  "Agende online sem ligar",
-  "Acompanhe conta e horarios",
-  "Planos mensais no WhatsApp",
-];
 const ROTINA = [
   "Segunda a quarta: 09:00 as 19:00",
   "Quinta: 09:00 as 20:00",
@@ -58,23 +53,6 @@ export default async function Home() {
               </div>
 
               <p className="mt-6 text-xs uppercase tracking-[0.3em] text-[var(--accent-strong)]">Barbearia Imperio Ferreira</p>
-              <h1 className="mt-4 max-w-xl text-4xl font-semibold tracking-tight sm:text-5xl">
-                Agendamento simples, rotina organizada e atendimento com cara de barbearia de verdade.
-              </h1>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--muted)] sm:text-lg">
-                O cliente resolve tudo em poucos toques. O barbeiro ganha liberdade para operar a agenda com clareza, sem perder velocidade no dia a dia.
-              </p>
-
-              <div className="mt-6 flex flex-wrap justify-center gap-2 lg:justify-start">
-                {DESTAQUES.map((item) => (
-                  <span
-                    key={item}
-                    className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.16em] text-[var(--accent-strong)]"
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
             </div>
 
             <div className="grid gap-5">
@@ -101,16 +79,7 @@ export default async function Home() {
                 </div>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-                <article className="rounded-[28px] border border-white/10 bg-black/20 p-5">
-                  <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Como funciona</p>
-                  <div className="mt-5 grid gap-3">
-                    <FeatureStep numero="01" titulo="Escolha o servico" texto="Selecione o que deseja, escolha a data e veja os horarios livres." />
-                    <FeatureStep numero="02" titulo="Confirme com Google" texto="A conta do cliente guarda o historico e evita retrabalho nas proximas visitas." />
-                    <FeatureStep numero="03" titulo="Volte quando precisar" texto="Acompanhe reservas, conta e plano sem confusao nem telas soltas." />
-                  </div>
-                </article>
-
+              <div>
                 <article className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(210,169,95,0.12),rgba(0,0,0,0.2))] p-5">
                   <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Rotina da barbearia</p>
                   <div className="mt-5 space-y-3">
@@ -130,9 +99,6 @@ export default async function Home() {
           <div className="mb-6 text-center sm:mb-8">
             <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent-strong)]">Planos mensais</p>
             <h2 className="mt-3 text-3xl font-semibold sm:text-4xl">Assine pelo WhatsApp</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-[var(--muted)] sm:text-base">
-              Os planos continuam com contato humano e fechamento direto no WhatsApp, mantendo simplicidade para o cliente e liberdade comercial para a barbearia.
-            </p>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -186,19 +152,5 @@ export default async function Home() {
         </section>
       </div>
     </main>
-  );
-}
-
-function FeatureStep({ numero, titulo, texto }: { numero: string; titulo: string; texto: string }) {
-  return (
-    <div className="grid grid-cols-[auto_1fr] gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-black">
-        {numero}
-      </div>
-      <div>
-        <p className="font-semibold text-white">{titulo}</p>
-        <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{texto}</p>
-      </div>
-    </div>
   );
 }

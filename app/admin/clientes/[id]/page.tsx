@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getTodayInputValue } from "@/lib/format";
+import { getDefaultMonthlyCycle, getNextMonthlyCycleEnd } from "@/lib/format";
 import {
   AdminActionButton,
   AdminMetric,
@@ -10,6 +10,9 @@ import {
   AdminPageHeading,
   AdminPanel,
 } from "@/app/admin/_components/AdminUi";
+
+const SELECT_STYLE = { colorScheme: "dark" as const, backgroundColor: "#18211f", color: "#ffffff" };
+const SELECT_OPTION_STYLE = { backgroundColor: "#101715", color: "#ffffff" };
 
 type Plano = {
   id: string;
@@ -51,15 +54,16 @@ type ClienteDetalhe = {
   historico_uso: Array<Record<string, unknown>>;
 };
 
+const INITIAL_CYCLE = getDefaultMonthlyCycle();
+
 export default function ClienteDetalhePage() {
   const params = useParams<{ id: string }>();
   const clienteId = String(params?.id ?? "");
   const [detalhe, setDetalhe] = useState<ClienteDetalhe | null>(null);
   const [planos, setPlanos] = useState<Plano[]>([]);
   const [planoId, setPlanoId] = useState("");
-  const [tipoRenovacao, setTipoRenovacao] = useState<"manual" | "automatica">("manual");
-  const [inicioCiclo, setInicioCiclo] = useState(getTodayInputValue());
-  const [fimCiclo, setFimCiclo] = useState(getTodayInputValue());
+  const [inicioCiclo, setInicioCiclo] = useState(INITIAL_CYCLE.inicioCiclo);
+  const [fimCiclo, setFimCiclo] = useState(INITIAL_CYCLE.fimCiclo);
   const [observacoes, setObservacoes] = useState("");
   const [categoriaUso, setCategoriaUso] = useState<"corte" | "barba" | "sobrancelha">("corte");
   const [quantidadeUso, setQuantidadeUso] = useState(1);
@@ -88,12 +92,13 @@ export default function ClienteDetalhePage() {
       return;
     }
 
+    const novoCiclo = getDefaultMonthlyCycle();
+
     setDetalhe(detalheJson);
     setPlanos(planosJson.planos ?? []);
     setPlanoId(detalheJson.assinatura?.plano_id ?? planosJson.planos?.[0]?.id ?? "");
-    setTipoRenovacao(detalheJson.assinatura?.tipo_renovacao ?? "manual");
-    setInicioCiclo(detalheJson.assinatura?.inicio_ciclo ?? getTodayInputValue());
-    setFimCiclo(detalheJson.assinatura?.fim_ciclo ?? getTodayInputValue());
+    setInicioCiclo(novoCiclo.inicioCiclo);
+    setFimCiclo(novoCiclo.fimCiclo);
     setObservacoes(String(detalheJson.assinatura?.observacoes_internas ?? ""));
     setLoading(false);
   }, [clienteId]);
@@ -132,7 +137,7 @@ export default function ClienteDetalhePage() {
       acao,
       cliente_id: clienteId,
       plano_id: planoId,
-      tipo_renovacao: tipoRenovacao,
+      tipo_renovacao: "manual",
       inicio_ciclo: inicioCiclo,
       fim_ciclo: fimCiclo,
       observacoes,
@@ -153,6 +158,9 @@ export default function ClienteDetalhePage() {
       return;
     }
 
+    const novoCiclo = getDefaultMonthlyCycle();
+    setInicioCiclo(novoCiclo.inicioCiclo);
+    setFimCiclo(novoCiclo.fimCiclo);
     setMsg("Plano atualizado com sucesso.");
     await carregar();
   }
@@ -224,6 +232,11 @@ export default function ClienteDetalhePage() {
     await carregar();
   }
 
+  function handleInicioCicloChange(value: string) {
+    setInicioCiclo(value);
+    setFimCiclo(getNextMonthlyCycleEnd(value));
+  }
+
   return (
     <>
       <AdminPageHeading
@@ -262,23 +275,21 @@ export default function ClienteDetalhePage() {
               </div>
             </AdminPanel>
 
-            <AdminPanel title="Gestao do plano" description="Adicione, renove, troque imediatamente ou cancele o plano do cliente sem sair desta tela.">
+            <AdminPanel title="Gestao do plano">
               <div className="grid gap-4">
-                <select value={planoId} onChange={(event) => setPlanoId(event.target.value)} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white">
+                <div className="grid gap-3 sm:grid-cols-2">
                   {planos.map((plano) => (
-                    <option key={plano.id} value={plano.id}>
-                      {plano.nome}
-                    </option>
+                    <PlanoOptionCard
+                      key={plano.id}
+                      plano={plano}
+                      selected={planoId === plano.id}
+                      onClick={() => setPlanoId(plano.id)}
+                    />
                   ))}
-                </select>
-
-                <select value={tipoRenovacao} onChange={(event) => setTipoRenovacao(event.target.value as "manual" | "automatica")} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white">
-                  <option value="manual">Renovacao manual</option>
-                  <option value="automatica">Renovacao automatica</option>
-                </select>
+                </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <input type="date" value={inicioCiclo} onChange={(event) => setInicioCiclo(event.target.value)} className="datetime-input rounded-2xl border px-4 py-3" />
+                  <input type="date" value={inicioCiclo} onChange={(event) => handleInicioCicloChange(event.target.value)} className="datetime-input rounded-2xl border px-4 py-3" />
                   <input type="date" value={fimCiclo} onChange={(event) => setFimCiclo(event.target.value)} className="datetime-input rounded-2xl border px-4 py-3" />
                 </div>
 
@@ -295,10 +306,10 @@ export default function ClienteDetalhePage() {
           <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
             <AdminPanel title="Registrar uso manual" description="Use quando o cliente foi atendido sem agendamento e o consumo precisa entrar no plano mesmo assim.">
               <div className="grid gap-4">
-                <select value={categoriaUso} onChange={(event) => setCategoriaUso(event.target.value as "corte" | "barba" | "sobrancelha")} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white">
-                  <option value="corte">Corte</option>
-                  <option value="barba">Barba</option>
-                  <option value="sobrancelha">Sobrancelha</option>
+                <select value={categoriaUso} onChange={(event) => setCategoriaUso(event.target.value as "corte" | "barba" | "sobrancelha")} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white" style={SELECT_STYLE}>
+                  <option value="corte" style={SELECT_OPTION_STYLE}>Corte</option>
+                  <option value="barba" style={SELECT_OPTION_STYLE}>Barba</option>
+                  <option value="sobrancelha" style={SELECT_OPTION_STYLE}>Sobrancelha</option>
                 </select>
                 <input type="number" min={1} value={quantidadeUso} onChange={(event) => setQuantidadeUso(Number(event.target.value) || 1)} className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3" />
                 <AdminActionButton onClick={registrarUsoManual}>Registrar uso do plano</AdminActionButton>
@@ -366,3 +377,50 @@ export default function ClienteDetalhePage() {
   );
 }
 
+function PlanoOptionCard({
+  plano,
+  selected,
+  onClick,
+}: {
+  plano: Plano;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const itens = [
+    plano.cortes_incluidos > 0 ? `${plano.cortes_incluidos} corte(s)` : null,
+    plano.barbas_incluidas > 0 ? `${plano.barbas_incluidas} barba(s)` : null,
+    plano.sobrancelhas_incluidas > 0 ? `${plano.sobrancelhas_incluidas} sobrancelha(s)` : null,
+  ].filter(Boolean) as string[];
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-[24px] border p-4 text-left transition ${
+        selected
+          ? "border-[var(--accent)] bg-[linear-gradient(180deg,rgba(210,169,95,0.22),rgba(210,169,95,0.12))] shadow-[0_14px_28px_rgba(210,169,95,0.12)]"
+          : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.05]"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-white">{plano.nome}</p>
+          <p className="mt-2 text-sm text-[var(--muted)]">{plano.descricao || "Cobertura mensal da barbearia."}</p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${selected ? "bg-black/15 text-[var(--background)]" : "border border-white/10 bg-black/20 text-[var(--accent-strong)]"}`}>
+          {Number(plano.preco).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+        </span>
+      </div>
+
+      {itens.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {itens.map((item) => (
+            <span key={item} className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-[var(--muted)]">
+              {item}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </button>
+  );
+}

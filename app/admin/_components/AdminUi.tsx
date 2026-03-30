@@ -8,7 +8,7 @@ export function AdminPageHeading({
 }: {
   eyebrow?: string;
   title: string;
-  description: string;
+  description?: string;
   actions?: ReactNode;
 }) {
   return (
@@ -16,7 +16,7 @@ export function AdminPageHeading({
       <div>
         {eyebrow && <p className="text-xs uppercase tracking-[0.26em] text-[var(--accent-strong)]">{eyebrow}</p>}
         <h1 className="mt-3 text-3xl font-semibold sm:text-4xl">{title}</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)] sm:text-base">{description}</p>
+        {description ? <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)] sm:text-base">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
     </section>
@@ -114,5 +114,26 @@ export function AdminActionButton({
     >
       {children}
     </button>
+  );
+}
+
+export function AdminToast({
+  tone = "info",
+  children,
+}: {
+  tone?: "info" | "success" | "danger";
+  children: ReactNode;
+}) {
+  const palette =
+    tone === "success"
+      ? "border-emerald-600/70 bg-emerald-950/95 text-emerald-100"
+      : tone === "danger"
+        ? "border-red-600/70 bg-red-950/95 text-red-100"
+        : "border-white/15 bg-[rgba(8,12,11,0.96)] text-white";
+
+  return (
+    <div className={`fixed bottom-5 right-5 z-50 max-w-sm rounded-2xl border px-4 py-3 text-sm shadow-[0_18px_40px_rgba(0,0,0,0.28)] backdrop-blur-xl ${palette}`}>
+      {children}
+    </div>
   );
 }

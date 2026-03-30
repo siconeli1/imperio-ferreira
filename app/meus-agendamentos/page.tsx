@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { formatarDataISO, formatarHora } from "@/lib/format";
 import { useCustomerSession } from "@/lib/use-customer-session";
@@ -21,6 +21,7 @@ type Agendamento = {
 export default function MeusAgendamentosPage() {
   const { accessToken, profile, sessionReady, signInWithGoogle, signOut } = useCustomerSession();
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
+  const [aba, setAba] = useState<"ativos" | "passados">("ativos");
   const [erro, setErro] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -127,6 +128,19 @@ export default function MeusAgendamentosPage() {
     return item.barbeiros?.nome ?? "Barbeiro";
   }
 
+  const agendamentosativos = useMemo(() => {
+    return [...agendamentos]
+      .filter((item) => item.status_agendamento !== "cancelado" && item.status_atendimento !== "concluido")
+      .sort((a, b) => `${a.data}T${a.hora_inicio}`.localeCompare(`${b.data}T${b.hora_inicio}`));
+  }, [agendamentos]);
+
+  const agendamentosPassados = useMemo(() => {
+    return [...agendamentos]
+      .filter((item) => item.status_agendamento === "cancelado" || item.status_atendimento === "concluido")
+      .sort((a, b) => `${b.data}T${b.hora_inicio}`.localeCompare(`${a.data}T${a.hora_inicio}`))
+      .slice(0, 5);
+  }, [agendamentos]);
+
   return (
     <main className="min-h-screen bg-[var(--background)] text-white">
       <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
@@ -196,12 +210,6 @@ export default function MeusAgendamentosPage() {
                   <p className="text-sm text-[var(--muted)]">Consultando como</p>
                   <p className="mt-1 text-lg font-semibold text-white">{profile.nome}</p>
                 </div>
-                <Link
-                  href="/agendar"
-                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 px-5 py-3 text-sm font-semibold hover:bg-white/10"
-                >
-                  Fazer novo agendamento
-                </Link>
               </div>
             </div>
 
@@ -219,54 +227,127 @@ export default function MeusAgendamentosPage() {
               </div>
             ) : null}
 
-            {agendamentos.map((item) => {
-              const cancelado = item.status_agendamento === "cancelado";
-              const concluido = item.status_atendimento === "concluido";
-              const statusLabel = cancelado ? "Cancelado" : concluido ? "Concluido" : "Agendado";
-
-              return (
-                <div key={item.id} className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
-                  <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-xl font-semibold">{formatarDataISO(item.data)}</p>
-                      <p className="mt-2 text-[var(--muted)]">
-                        {formatarHora(item.hora_inicio)} ate {formatarHora(item.hora_fim)}
-                      </p>
-                      <p className="mt-4 text-white">{item.servico_nome || "Servico nao informado"}</p>
-                      <p className="mt-2 text-sm text-[var(--muted)]">Barbeiro: {resolveBarbeiroNome(item)}</p>
-                    </div>
-
-                    <div className="text-left sm:text-right">
-                      <span className="inline-flex rounded-full border border-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-strong)]">
-                        {statusLabel}
-                      </span>
-                      <p className="mt-3 text-lg font-semibold">
-                        {Number(item.valor_final ?? item.servico_preco ?? 0).toLocaleString("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        })}
-                      </p>
-                    </div>
-                  </div>
-
-                  {!cancelado && !concluido ? (
-                    <div className="mt-6 flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        onClick={() => cancelar(item.id)}
-                        disabled={loading}
-                        className="inline-flex min-h-11 items-center justify-center rounded-full border border-red-500 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-950/30 disabled:opacity-50"
-                      >
-                        Cancelar agendamento
-                      </button>
-                    </div>
-                  ) : null}
+            {!loading && profileExists && agendamentos.length > 0 ? (
+              <div className="space-y-5">
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAba("ativos")}
+                    className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition ${
+                      aba === "ativos"
+                        ? "bg-[var(--accent)] text-black"
+                        : "border border-white/15 text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Agendamentos ativos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAba("passados")}
+                    className={`inline-flex min-h-11 items-center justify-center rounded-full px-5 py-3 text-sm font-semibold transition ${
+                      aba === "passados"
+                        ? "bg-[var(--accent)] text-black"
+                        : "border border-white/15 text-white hover:bg-white/10"
+                    }`}
+                  >
+                    Agendamentos passados
+                  </button>
                 </div>
-              );
-            })}
+
+                {aba === "ativos" ? (
+                  agendamentosativos.length === 0 ? (
+                    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-8 text-center text-[var(--muted)]">
+                      Nenhum agendamento atual encontrado.
+                    </div>
+                  ) : (
+                    agendamentosativos.map((item) => (
+                      <AgendamentoCard
+                        key={item.id}
+                        item={item}
+                        barbeiroNome={resolveBarbeiroNome(item)}
+                        loading={loading}
+                        onCancelar={cancelar}
+                      />
+                    ))
+                  )
+                ) : agendamentosPassados.length === 0 ? (
+                  <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-8 text-center text-[var(--muted)]">
+                    Nenhum agendamento passado encontrado.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {agendamentosPassados.map((item) => (
+                      <AgendamentoCard
+                        key={item.id}
+                        item={item}
+                        barbeiroNome={resolveBarbeiroNome(item)}
+                        loading={loading}
+                        onCancelar={cancelar}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
           </section>
         ) : null}
       </div>
     </main>
+  );
+}
+
+function AgendamentoCard({
+  item,
+  barbeiroNome,
+  loading,
+  onCancelar,
+}: {
+  item: Agendamento;
+  barbeiroNome: string;
+  loading: boolean;
+  onCancelar: (id: string) => void;
+}) {
+  const cancelado = item.status_agendamento === "cancelado";
+  const concluido = item.status_atendimento === "concluido";
+  const statusLabel = cancelado ? "Cancelado" : concluido ? "Concluido" : "Agendado";
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xl font-semibold">{formatarDataISO(item.data)}</p>
+          <p className="mt-2 text-[var(--muted)]">
+            {formatarHora(item.hora_inicio)} ate {formatarHora(item.hora_fim)}
+          </p>
+          <p className="mt-4 text-white">{item.servico_nome || "Servico nao informado"}</p>
+          <p className="mt-2 text-sm text-[var(--muted)]">Barbeiro: {barbeiroNome}</p>
+        </div>
+
+        <div className="text-left sm:text-right">
+          <span className="inline-flex rounded-full border border-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-strong)]">
+            {statusLabel}
+          </span>
+          <p className="mt-3 text-lg font-semibold">
+            {Number(item.valor_final ?? item.servico_preco ?? 0).toLocaleString("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+            })}
+          </p>
+        </div>
+      </div>
+
+      {!cancelado && !concluido ? (
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => onCancelar(item.id)}
+            disabled={loading}
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-red-500 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-950/30 disabled:opacity-50"
+          >
+            Cancelar agendamento
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
