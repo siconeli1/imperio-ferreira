@@ -31,13 +31,6 @@ SUPABASE_SERVICE_ROLE_KEY=
 ADMIN_SESSION_SECRET=
 ```
 
-## Credenciais iniciais da migration
-
-- `lucas` / `ferreira`
-- `alexandre` / `ferreira`
-- `ryan` / `ferreira`
-- `peixoto` / `ferreira`
-
 ## Como rodar
 
 ```bash
